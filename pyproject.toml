@@ -1,0 +1,46 @@
+[project]
+name = "MRI_toolkit"
+authors = [
+    { name = "Jørgen Riseth", email = "jnriseth@gmail.com" },
+    { name = "Cécile Daversin Catty", email = "cecile@simula.no" }
+]
+version = "0.1.0"
+requires-python = ">=3.10"
+description = "MRI processing toolkit."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+
+dependencies = [
+  "click",
+  "tqdm",
+  "numpy",
+  "nibabel",
+  "pandas"]
+
+[project.optional-dependencies]
+extra = []
+test = [
+   "mypy", # Input/Output consistency
+   "pytest", # Testing suite
+]
+pypi = [
+    "build" # Used for building wheels and uploading to pypi
+]
+all = ["MRI_toolkit[extra,test,pypi]"]
+
+
+[project.scripts]
+mri-toolkit = "_cli:mri_toolkit"
+
+[project.urls]
+Homepage = "https://github.com/scientificcomputing/MRI-toolkit.git"
+
+[tool.mypy]
+plugins = "numpy.typing.mypy_plugin"
+ignore_missing_imports = true # Does not show errors when importing untyped libraries
+files = [  # Folder to which files that should be checked by mypy
+    "src",
+    "test"
+]
+

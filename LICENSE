@@ -1,8 +1,10 @@
 MIT License
 
-Copyright (c) 2026 Scientific Computing at Simula Research Laboratory
 Copyright (c) 2026 Jørgen Riseth
 Copyright (c) 2026 Cécile Daversin Catty
+Copyright (c) 2026 Scientific Computing at Simula Research Laboratory
+
+This software is based on the MIT-licensed gMRI2FEM software (https://github.com/jorgenriseth/gMRI2FEM)
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal

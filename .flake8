@@ -1,0 +1,7 @@
+[flake8]
+# Ignore specific error codes globally
+ignore = E501
+
+# Exclude specific directories from being scanned at all
+exclude = 
+    .git,
