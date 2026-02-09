@@ -36,7 +36,7 @@ test = [
 pypi = [
     "build" # Used for building wheels and uploading to pypi
 ]
-all = ["mri-toolkit[extra,test,pypi]"]
+all = ["mri-toolkit[extra,test,pypi,show,napari]"]
 
 
 [project.urls]
