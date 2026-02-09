@@ -10,97 +10,13 @@ from typing import Optional
 import re
 import numpy as np
 import pandas as pd
-import tqdm
-import click
+import tqdm.rich
 
 from ..data.io import load_mri_data
 from ..data.orientation import assert_same_space
 from ..segmentation.groups import default_segmentation_groups
 from ..segmentation.lookup_table import read_lut
 from .utils import voxel_count_to_ml_scale, find_timestamp, prepend_info
-
-
-@click.group()
-def mristats():
-    pass
-
-
-@mristats.command("compute")
-@click.option("--segmentation", "-s", "seg_path", type=Path, required=True)
-@click.option("--mri", "-m", "mri_paths", multiple=True, type=Path, required=True)
-@click.option("--output", "-o", type=Path, required=True)
-@click.option("--timetable", "-t", type=Path)
-@click.option("--timelabel", "-l", "timetable_sequence", type=str)
-@click.option("--seg_regex", "-sr", "seg_pattern", type=str)
-@click.option("--mri_regex", "-mr", "mri_data_pattern", type=str)
-@click.option("--lut", "-lt", "lut_path", type=Path)
-@click.option("--info", "-i", "info_dict", type=dict)
-## FIXME : Need to check that all the given mri in mri_paths
-## are registered to the same baseline MRI - this is done in create_dataframe
-def compute_mri_stats(
-    seg_path: str | Path,
-    mri_paths: tuple[str | Path],
-    output: str | Path,
-    timetable: Optional[str | Path],
-    timetable_sequence: Optional[str | Path],
-    seg_pattern: Optional[str | Path],
-    mri_data_pattern: Optional[str | Path],
-    lut_path: Optional[Path] = None,
-    info_dict: Optional[dict] = None,
-):
-    if not Path(seg_path).exists():
-        raise RuntimeError(f"Missing segmentation: {seg_path}")
-
-    for path in mri_paths:
-        if not Path(path).exists():
-            raise RuntimeError(f"Missing: {path}")
-
-    dataframes = [
-        generate_stats_dataframe(
-            Path(seg_path),
-            Path(path),
-            timetable,
-            timetable_sequence,
-            seg_pattern,
-            mri_data_pattern,
-            lut_path,
-            info_dict,
-        )
-        for path in mri_paths
-    ]
-    pd.concat(dataframes).to_csv(output, sep=";", index=False)
-
-
-# FIXME : This function with one mri_path but should be able to handle dataframe with multiple MRIs
-@mristats.command("get")
-@click.option("--stats_file", "-f", "stats_file", type=Path, required=True)
-@click.option("--region", "-r", "region", type=str)
-@click.option("--info", "-i", "info", type=str)
-def get_stats_value(stats_file: str | Path, region: str, info: str):
-    assert region in default_segmentation_groups().keys()
-    assert info in [
-        "sum",
-        "mean",
-        "median",
-        "std",
-        "min",
-        "max",
-        "PC1",
-        "PC5",
-        "PC25",
-        "PC75",
-        "PC90",
-        "PC95",
-        "PC99",
-    ]
-
-    df = pd.read_csv(stats_file, sep=";")
-
-    region_row = df.loc[df["description"] == region]
-    info_value = region_row[info].values[0]
-    print(f"{info}[{region}] = {info_value}")
-
-    return info_value
 
 
 def generate_stats_dataframe(
@@ -178,7 +94,8 @@ def generate_stats_dataframe(
     records = []
     finite_mask = np.isfinite(mri.data)
     volscale = voxel_count_to_ml_scale(seg.affine)
-    for description, labels in tqdm.tqdm(regions.items()):
+
+    for description, labels in tqdm.rich.tqdm(regions.items(), total=len(regions)):
         region_mask = np.isin(seg.data, labels)
         voxelcount = region_mask.sum()
         record = {
