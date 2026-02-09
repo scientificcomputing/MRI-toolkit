@@ -6,7 +6,7 @@ from typing import Sequence, Optional
 
 from rich_argparse import RichHelpFormatter
 
-from . import download_data, info, statistics
+from . import download_data, info, statistics, show
 
 
 def version_info():
@@ -67,6 +67,11 @@ def setup_parser():
     )
     statistics.cli.add_arguments(stats_parser)
 
+    show_parser = subparsers.add_parser(
+        "show", help="Show MRI data in a terminal", formatter_class=parser.formatter_class
+    )
+    show.add_arguments(show_parser)
+
     return parser
 
 
@@ -88,6 +93,8 @@ def dispatch(parser: argparse.ArgumentParser, argv: Optional[Sequence[str]] = No
             info.nifty_info(file, json_output=args.pop("json"))
         elif command == "stats":
             statistics.cli.dispatch(args)
+        elif command == "show":
+            show.dispatch(args)
         else:
             logger.error(f"Unknown command {command}")
             parser.print_help()

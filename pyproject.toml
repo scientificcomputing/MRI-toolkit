@@ -13,7 +13,6 @@ license = "MIT"
 license-files = ["LICENSE"]
 
 dependencies = [
-  "click",
   "tqdm",
   "numpy",
   "rich-argparse",
@@ -21,10 +20,15 @@ dependencies = [
   "pandas"]
 
 [project.optional-dependencies]
-extra = []
+show = [
+    "textual-image", # Used to show images in terminal
+    "pillow",    # Used to handle image data
+    "matplotlib" # Used for colormaps
+]
 test = [
     "pytest",
     "pytest-cov",
+
 ]
 pypi = [
     "build" # Used for building wheels and uploading to pypi
