@@ -49,26 +49,26 @@ def compute_mri_stats(
     dataframes = []
 
     # Loop through MRI paths
-    with console.status("[bold green]Processing MRIs...[/bold green]"):
-        for i, path in enumerate(mri):
-            console.print(f"[blue]Processing MRI {i + 1}/{len(mri)}:[/blue] {path.name}")
+    console.print("[bold green]Processing MRIs...[/bold green]")
+    for i, path in enumerate(mri):
+        # console.print(f"[blue]Processing MRI {i + 1}/{len(mri)}:[/blue] {path.name}")
 
-            try:
-                # Call the logic function
-                df = generate_stats_dataframe(
-                    seg_path=segmentation,
-                    mri_path=path,
-                    timestamp_path=timetable,
-                    timestamp_sequence=timelabel,
-                    seg_pattern=seg_regex,
-                    mri_data_pattern=mri_regex,
-                    lut_path=lut,
-                    info_dict=info_dict,
-                )
-                dataframes.append(df)
-            except Exception as e:
-                console.print(f"[bold red]Failed to process {path.name}:[/bold red] {e}")
-                sys.exit(1)
+        try:
+            # Call the logic function
+            df = generate_stats_dataframe(
+                seg_path=segmentation,
+                mri_path=path,
+                timestamp_path=timetable,
+                timestamp_sequence=timelabel,
+                seg_pattern=seg_regex,
+                mri_data_pattern=mri_regex,
+                lut_path=lut,
+                info_dict=info_dict,
+            )
+            dataframes.append(df)
+        except Exception as e:
+            console.print(f"[bold red]Failed to process {path.name}:[/bold red] {e}")
+            sys.exit(1)
 
     if dataframes:
         final_df = pd.concat(dataframes)
@@ -153,7 +153,7 @@ def get_stats_value(stats_file: Path, region: str, info: str, **kwargs):
 
 
 def add_arguments(parser: argparse.ArgumentParser):
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+    subparsers = parser.add_subparsers(dest="stats-command", help="Available commands")
 
     # --- Compute Command ---
     parser_compute = subparsers.add_parser(
@@ -201,7 +201,7 @@ def add_arguments(parser: argparse.ArgumentParser):
 
 
 def dispatch(args: dict[str, typing.Any]):
-    command = args.pop("command")
+    command = args.pop("stats-command")
     if command == "compute":
         compute_mri_stats(**args)
     elif command == "get":

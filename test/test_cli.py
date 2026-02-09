@@ -12,10 +12,11 @@ def test_cli_version(capsys):
 
 def test_cli_info(capsys, mri_data_dir):
     test_file = (
-        mri_data_dir + "/mri-processed/mri_processed_data/sub-01/"
-        "concentrations/sub-01_ses-01_concentration.nii.gz"
+        mri_data_dir
+        / "mri-processed/mri_processed_data/sub-01"
+        / "concentrations/sub-01_ses-01_concentration.nii.gz"
     )
-    args = ["info", test_file]
+    args = ["info", str(test_file)]
     cli.main(args)
     captured = capsys.readouterr()
     assert "Voxel Size (mm)   (0.50, 0.50, 0.50)" in captured.out
@@ -24,10 +25,11 @@ def test_cli_info(capsys, mri_data_dir):
 
 def test_cli_info_json(capsys, mri_data_dir):
     test_file = (
-        mri_data_dir + "/mri-processed/mri_processed_data/sub-01/"
-        "concentrations/sub-01_ses-01_concentration.nii.gz"
+        mri_data_dir
+        / "mri-processed/mri_processed_data/sub-01"
+        / "concentrations/sub-01_ses-01_concentration.nii.gz"
     )
-    args = ["info", test_file, "--json"]
+    args = ["info", str(test_file), "--json"]
     cli.main(args)
     captured = capsys.readouterr()
     data = json.loads(captured.out)
