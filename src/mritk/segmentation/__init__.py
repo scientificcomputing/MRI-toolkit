@@ -4,5 +4,6 @@ Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 Copyright (C) 2026   Simula Research Laboratory
 """
 
-__name__ = "MRI"
-__all__ = ['data', 'segmentation', 'statistics']
+from . import groups, lookup_table
+
+__all__ = ["groups", "lookup_table"]

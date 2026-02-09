@@ -2,6 +2,7 @@
 name = "mri-toolkit"
 authors = [
     { name = "Jørgen Riseth", email = "jnriseth@gmail.com" },
+    { name = "Henrik Finsberg", email = "henriknf@simula.no" },
     { name = "Cécile Daversin Catty", email = "cecile@simula.no" }
 ]
 version = "0.1.0"
@@ -21,8 +22,8 @@ dependencies = [
 [project.optional-dependencies]
 extra = []
 test = [
-   "mypy", # Input/Output consistency
-   "pytest", # Testing suite
+    "pytest",
+    "pytest-cov",
 ]
 pypi = [
     "build" # Used for building wheels and uploading to pypi
@@ -34,10 +35,76 @@ all = ["mri-toolkit[extra,test,pypi]"]
 Homepage = "https://github.com/scientificcomputing/mri-toolkit.git"
 
 [tool.mypy]
-plugins = "numpy.typing.mypy_plugin"
 ignore_missing_imports = true # Does not show errors when importing untyped libraries
 files = [  # Folder to which files that should be checked by mypy
     "src",
     "test"
 ]
 
+
+[tool.ruff]
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    "examples",
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+]
+
+# Same as Black.
+line-length = 100
+
+# Assume Python 3.10.
+target-version = "py312"
+
+[tool.ruff.lint]
+# Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
+select = ["E", "F"]
+ignore = ["E402", "E741", "E743", "E731"]
+
+# Allow autofix for all enabled rules (when `--fix`) is provided.
+fixable = ["A", "B", "C", "D", "E", "F"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+
+[tool.ruff.lint.mccabe]
+# Unlike Flake8, default to a complexity level of 10.
+max-complexity = 10
+
+
+[tool.bumpversion]
+allow_dirty = false
+commit = true
+message = "Bump version: {current_version} → {new_version}"
+tag = true
+sign_tags = false
+tag_name = "v{new_version}"
+tag_message = "Bump version: {current_version} → {new_version}"
+current_version = "0.1.0"
+
+
+[[tool.bumpversion.files]]
+filename = "pyproject.toml"
+search = 'version = "{current_version}"'
+replace = 'version = "{new_version}"'

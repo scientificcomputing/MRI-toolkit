@@ -62,4 +62,5 @@ def default_segmentation_groups():
 
 if __name__ == "__main__":
     import json
+
     print(json.dumps(default_segmentation_groups(), indent=4))

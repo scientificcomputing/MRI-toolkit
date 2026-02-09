@@ -5,8 +5,8 @@ Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 Copyright (C) 2026   Simula Research Laboratory
 """
 
-from MRI.data.io import *
 import numpy as np
+from .base import MRIData
 
 
 def apply_affine(T: np.ndarray, X: np.ndarray) -> np.ndarray:
@@ -17,9 +17,7 @@ def apply_affine(T: np.ndarray, X: np.ndarray) -> np.ndarray:
     return A.dot(X.T).T + b
 
 
-def data_reorientation(
-  mri_data: MRIData
-  ) -> MRIData:
+def data_reorientation(mri_data: MRIData) -> MRIData:
     """Reorients the data-array and affine map such that the affine map is
     closest to the identity-matrix, such that increasing the first index
     corresponds to increasing the first coordinate in real space, and so on.
@@ -95,20 +93,16 @@ def change_of_coordinates_map(orientation_in: str, orientation_out: str) -> np.n
     return P @ F
 
 
-def assert_same_space(
-    mri1: MRIData, 
-    mri2: MRIData, 
-    rtol: float = 1e-5
-    ):
-    
-    if mri1.data.shape == mri2.data.shape and np.allclose(
-        mri1.affine, mri2.affine, rtol
-    ):
+def assert_same_space(mri1: MRIData, mri2: MRIData, rtol: float = 1e-5):
+    if mri1.data.shape == mri2.data.shape and np.allclose(mri1.affine, mri2.affine, rtol):
         return
     with np.printoptions(precision=5):
-        raise ValueError(
-            f"""MRI's not in same space (relative tolerance {rtol}).
-            Shapes: ({mri1.data.shape}, {mri2.data.shape}),
-            Affines: {mri1.affine}, {mri2.affine},
-            Affine max relative error: {np.nanmax(np.abs((mri1.affine - mri2.affine) / mri2.affine))}"""
+        err = np.nanmax(np.abs((mri1.affine - mri2.affine) / mri2.affine))
+        msg = (
+            f"MRI's not in same space (relative tolerance {rtol})."
+            f" Shapes: ({mri1.data.shape}, {mri2.data.shape}),"
+            f" Affines: {mri1.affine}, {mri2.affine},"
+            f" Affine max relative error: {err}"
         )
+
+        raise ValueError(msg)

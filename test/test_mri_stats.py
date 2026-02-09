@@ -9,22 +9,7 @@ import os
 from click.testing import CliRunner
 from pathlib import Path
 
-from mri.statistics.compute_stats import generate_stats_dataframe, compute_mri_stats
-import pytest
-import download_data
-
-links = {
-    "mri-processed.zip": "https://zenodo.org/records/14266867/files/mri-processed.zip?download=1",
-    "timetable.tsv": "https://github.com/jorgenriseth/gonzo/blob/main/mri_dataset/timetable.tsv?raw=true",
-}
-
-
-@pytest.fixture(scope="session")
-def mri_data_dir(tmp_path_factory):
-    data_dir = tmp_path_factory.mktemp("mri_test_data")
-    download_data.download_multiple(links, data_dir)
-
-    return data_dir
+from mritk.statistics.compute_stats import generate_stats_dataframe, compute_mri_stats
 
 
 def test_compute_stats_default(mri_data_dir):
@@ -76,10 +61,10 @@ def test_compute_stats_patterns(mri_data_dir):
         mri_data_dir,
         "mri-processed/mri_processed_data/sub-01/concentrations/sub-01_ses-01_concentration.nii.gz",
     )
-    seg_pattern = (
-        "(?P<subject>sub-(control|patient)*\\d{2})_seg-(?P<segmentation>[^\\.]+)"
+    seg_pattern = "(?P<subject>sub-(control|patient)*\\d{2})_seg-(?P<segmentation>[^\\.]+)"
+    mri_data_pattern = (
+        "(?P<subject>sub-(control|patient)*\\d{2})_(?P<session>ses-\\d{2})_(?P<mri_data>[^\\.]+)"
     )
-    mri_data_pattern = "(?P<subject>sub-(control|patient)*\\d{2})_(?P<session>ses-\\d{2})_(?P<mri_data>[^\\.]+)"
 
     dataframe = generate_stats_dataframe(
         seg_path,
@@ -104,10 +89,10 @@ def test_compute_stats_timestamp(mri_data_dir):
         mri_data_dir,
         "mri-processed/mri_processed_data/sub-01/concentrations/sub-01_ses-01_concentration.nii.gz",
     )
-    seg_pattern = (
-        "(?P<subject>sub-(control|patient)*\\d{2})_seg-(?P<segmentation>[^\\.]+)"
+    seg_pattern = "(?P<subject>sub-(control|patient)*\\d{2})_seg-(?P<segmentation>[^\\.]+)"
+    mri_data_pattern = (
+        "(?P<subject>sub-(control|patient)*\\d{2})_(?P<session>ses-\\d{2})_(?P<mri_data>[^\\.]+)"
     )
-    mri_data_pattern = "(?P<subject>sub-(control|patient)*\\d{2})_(?P<session>ses-\\d{2})_(?P<mri_data>[^\\.]+)"
     timetable = os.path.join(mri_data_dir, "timetable/timetable.tsv")
     timetable_sequence = "mixed"
 
@@ -158,10 +143,10 @@ def test_compute_mri_stats_cli(tmp_path, mri_data_dir):
         mri_data_dir,
         "mri-processed/mri_processed_data/sub-01/concentrations/sub-01_ses-01_concentration.nii.gz",
     )
-    seg_pattern = (
-        "(?P<subject>sub-(control|patient)*\\d{2})_seg-(?P<segmentation>[^\\.]+)"
+    seg_pattern = "(?P<subject>sub-(control|patient)*\\d{2})_seg-(?P<segmentation>[^\\.]+)"
+    mri_data_pattern = (
+        "(?P<subject>sub-(control|patient)*\\d{2})_(?P<session>ses-\\d{2})_(?P<mri_data>[^\\.]+)"
     )
-    mri_data_pattern = "(?P<subject>sub-(control|patient)*\\d{2})_(?P<session>ses-\\d{2})_(?P<mri_data>[^\\.]+)"
     timetable = os.path.join(mri_data_dir, "timetable/timetable.tsv")
     timetable_sequence = "mixed"
 

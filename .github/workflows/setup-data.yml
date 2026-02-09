@@ -1,0 +1,52 @@
+name: Setup Data
+
+on:
+  workflow_call:
+    # This makes this workflow reusable by others
+
+
+
+jobs:
+  download-and-cache:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+
+      # 1. ATTEMPT TO RESTORE FROM CACHE
+      - name: Restore cached data
+        id: cache-data
+        uses: actions/cache@v4
+        with:
+          path: data/  # The folder you want to cache
+          # The key determines if we have a match.
+          # Change 'v1' to 'v2' manually to force a re-download in the future.
+          key: test-data-v2
+
+
+        # 2. DOWNLOAD ONLY IF CACHE MISS
+      - name: Set up Python 3.12
+        if: steps.cache-data.outputs.cache-hit != 'true'
+        uses: actions/setup-python@v6
+        with:
+            python-version: 3.12
+
+      - name: Install mritk
+        if: steps.cache-data.outputs.cache-hit != 'true'
+        run: |
+          python3 -m pip install -e .
+
+      - name: Download test data
+        if: steps.cache-data.outputs.cache-hit != 'true'
+        run: |
+            python3 -m mritk download-test-data data
+
+
+      - name: Upload Data Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: shared-test-data
+          path: data/ # The folder you want to share
+          retention-days: 1
+          overwrite: true

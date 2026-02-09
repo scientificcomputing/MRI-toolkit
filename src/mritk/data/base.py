@@ -5,6 +5,8 @@ Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 Copyright (C) 2026   Simula Research Laboratory
 """
 
+import numpy as np
+
 
 class MRIData:
     def __init__(self, data: np.ndarray, affine: np.ndarray):
