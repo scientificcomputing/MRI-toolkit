@@ -25,6 +25,9 @@ show = [
     "pillow",    # Used to handle image data
     "matplotlib" # Used for colormaps
 ]
+napari = [
+    "napari[all]", # Used for interactive visualization
+]
 test = [
     "pytest",
     "pytest-cov",

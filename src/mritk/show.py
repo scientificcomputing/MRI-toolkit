@@ -62,8 +62,12 @@ def dispatch(args):
         from textual_image.renderable import Image as TermImage
         import PIL.Image
     except ImportError:
-        print("The 'textual_image' and 'pillow' packages are required.")
-        print("Please install with: 'pip install textual-image pillow'")
+        console = Console()
+        console.print(
+            "[bold red]Error:[/bold red] The 'textual_image' and 'pillow' "
+            "packages are required to use the 'show' command. "
+            "Please install with: 'pip install mri-toolkit[show]'"
+        )
         return
 
     # 1. Load Data

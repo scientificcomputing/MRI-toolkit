@@ -6,7 +6,7 @@ from typing import Sequence, Optional
 
 from rich_argparse import RichHelpFormatter
 
-from . import download_data, info, statistics, show
+from . import download_data, info, statistics, show, napari
 
 
 def version_info():
@@ -72,6 +72,11 @@ def setup_parser():
     )
     show.add_arguments(show_parser)
 
+    napari_parser = subparsers.add_parser(
+        "napari", help="Show MRI data using napari", formatter_class=parser.formatter_class
+    )
+    napari.add_arguments(napari_parser)
+
     return parser
 
 
@@ -95,6 +100,8 @@ def dispatch(parser: argparse.ArgumentParser, argv: Optional[Sequence[str]] = No
             statistics.cli.dispatch(args)
         elif command == "show":
             show.dispatch(args)
+        elif command == "napari":
+            napari.dispatch(args)
         else:
             logger.error(f"Unknown command {command}")
             parser.print_help()
