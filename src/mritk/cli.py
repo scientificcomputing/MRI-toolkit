@@ -6,7 +6,7 @@ from typing import Sequence, Optional
 
 from rich_argparse import RichHelpFormatter
 
-from . import download_data, info
+from . import download_data, info, statistics
 
 
 def version_info():
@@ -48,15 +48,24 @@ def setup_parser():
     subparsers = parser.add_subparsers(dest="command")
 
     # Download test data parser
-    download_parser = subparsers.add_parser("download-test-data", help="Download test data")
+    download_parser = subparsers.add_parser(
+        "download-test-data", help="Download test data", formatter_class=parser.formatter_class
+    )
     download_parser.add_argument("outdir", type=Path, help="Output directory to download test data")
 
-    info_parser = subparsers.add_parser("info", help="Display information about a file")
+    info_parser = subparsers.add_parser(
+        "info", help="Display information about a file", formatter_class=parser.formatter_class
+    )
     info_parser.add_argument("file", type=Path, help="File to display information about")
 
     info_parser.add_argument(
         "--json", action="store_true", help="Output information in JSON format"
     )
+
+    stats_parser = subparsers.add_parser(
+        "stats", help="Compute MRI statistics", formatter_class=parser.formatter_class
+    )
+    statistics.cli.add_arguments(stats_parser)
 
     return parser
 
@@ -77,6 +86,8 @@ def dispatch(parser: argparse.ArgumentParser, argv: Optional[Sequence[str]] = No
         elif command == "info":
             file = args.pop("file")
             info.nifty_info(file, json_output=args.pop("json"))
+        elif command == "stats":
+            statistics.cli.dispatch(args)
         else:
             logger.error(f"Unknown command {command}")
             parser.print_help()
