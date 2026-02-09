@@ -1,5 +1,5 @@
 [project]
-name = "MRI_toolkit"
+name = "mri-toolkit"
 authors = [
     { name = "Jørgen Riseth", email = "jnriseth@gmail.com" },
     { name = "Cécile Daversin Catty", email = "cecile@simula.no" }
@@ -27,14 +27,11 @@ test = [
 pypi = [
     "build" # Used for building wheels and uploading to pypi
 ]
-all = ["MRI_toolkit[extra,test,pypi]"]
+all = ["mri-toolkit[extra,test,pypi]"]
 
-
-[project.scripts]
-mri-toolkit = "_cli:mri_toolkit"
 
 [project.urls]
-Homepage = "https://github.com/scientificcomputing/MRI-toolkit.git"
+Homepage = "https://github.com/scientificcomputing/mri-toolkit.git"
 
 [tool.mypy]
 plugins = "numpy.typing.mypy_plugin"

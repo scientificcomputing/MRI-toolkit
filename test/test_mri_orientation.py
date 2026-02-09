@@ -5,9 +5,8 @@ Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 Copyright (C) 2026   Simula Research Laboratory
 """
 
-
 import numpy as np
-from MRI.data.orientation import apply_affine, change_of_coordinates_map
+from mri.data.orientation import apply_affine, change_of_coordinates_map
 
 
 def default_test_data():
