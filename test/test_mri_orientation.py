@@ -6,7 +6,7 @@ Copyright (C) 2026   Simula Research Laboratory
 """
 
 import numpy as np
-from mri.data.orientation import apply_affine, change_of_coordinates_map
+from mritk.data.orientation import apply_affine, change_of_coordinates_map
 
 
 def default_test_data():

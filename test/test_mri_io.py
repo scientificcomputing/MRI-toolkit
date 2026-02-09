@@ -8,7 +8,7 @@ Copyright (C) 2026   Simula Research Laboratory
 import numpy as np
 import os
 
-from mri.data.io import load_mri_data, save_mri_data
+from mritk.data.io import load_mri_data, save_mri_data
 import pytest
 import download_data
 

@@ -9,7 +9,7 @@ import os
 from click.testing import CliRunner
 from pathlib import Path
 
-from mri.statistics.compute_stats import generate_stats_dataframe, compute_mri_stats
+from mritk.statistics.compute_stats import generate_stats_dataframe, compute_mri_stats
 import pytest
 import download_data
 

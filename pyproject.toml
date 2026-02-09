@@ -2,6 +2,7 @@
 name = "mri-toolkit"
 authors = [
     { name = "Jørgen Riseth", email = "jnriseth@gmail.com" },
+    { name = "Henrik Finsberg", email = "henriknf@simula.no" },
     { name = "Cécile Daversin Catty", email = "cecile@simula.no" }
 ]
 version = "0.1.0"
