@@ -22,7 +22,7 @@ jobs:
           path: data/  # The folder you want to cache
           # The key determines if we have a match.
           # Change 'v1' to 'v2' manually to force a re-download in the future.
-          key: test-data-v1
+          key: test-data-v2
 
 
         # 2. DOWNLOAD ONLY IF CACHE MISS
