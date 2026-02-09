@@ -32,7 +32,5 @@ def test_mri_io_nifti(tmp_path, mri_data_dir):
     )
     output_file = tmp_path / "output_nifti.nii.gz"
 
-    mri = load_mri_data(
-        input_file, dtype=np.single, orient=False
-    )  ## TODO : Test orient=True case
+    mri = load_mri_data(input_file, dtype=np.single, orient=False)  ## TODO : Test orient=True case
     save_mri_data(mri, output_file, dtype=np.single)

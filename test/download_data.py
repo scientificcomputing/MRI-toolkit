@@ -15,7 +15,7 @@ import tqdm
 logger = logging.getLogger(__name__)
 
 
-#def download_data(outdir: Path, file_info: tuple) -> None:
+# def download_data(outdir: Path, file_info: tuple) -> None:
 def download_data(args) -> None:
     (outdir, file_info) = args
     (filename, url) = file_info
@@ -49,17 +49,19 @@ def download_multiple(urls: dict, outdir, max_workers=4):
 
     # Download files using thread pool
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        results = list(tqdm.tqdm(
-            executor.map(download_data, args),
-            total=len(urls),
-            desc="Downloading MRI data - Gonzo"
-      ))
+        results = list(
+            tqdm.tqdm(
+                executor.map(download_data, args),
+                total=len(urls),
+                desc="Downloading MRI data - Gonzo",
+            )
+        )
 
     # Process results
     successful = [r for r in results if r is not None]
     failed = len(results) - len(successful)
 
-    print(f"\nDownload complete:")
+    print("\nDownload complete:")
     print(f"- Successfully downloaded: {len(successful)} files")
     print(f"- Failed downloads: {failed} files")
 

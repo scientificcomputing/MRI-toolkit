@@ -12,8 +12,8 @@ import numpy.typing as npt
 import re
 from typing import Optional
 
-from MRI.data.base import MRIData
-from MRI.data.orientation import data_reorientation
+from .base import MRIData
+from .orientation import data_reorientation
 
 
 def load_mri_data(
@@ -44,10 +44,7 @@ def load_mri_data(
 
 
 def save_mri_data(
-    mri: MRIData, 
-    path: Path, 
-    dtype: npt.DTypeLike, 
-    intent_code: Optional[int] = None
+    mri: MRIData, path: Path, dtype: npt.DTypeLike, intent_code: Optional[int] = None
 ):
     # TODO : Choose other way to check extension than regex ?
     suffix_regex = re.compile(r".+(?P<suffix>(\.nii(\.gz|)|\.mg(z|h)))")

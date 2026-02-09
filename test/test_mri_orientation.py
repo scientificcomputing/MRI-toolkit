@@ -45,7 +45,7 @@ def default_test_affine():
 
 
 def test_change_of_coordinates():
-    A, T = default_test_data(), default_test_affine()
+    _, T = default_test_data(), default_test_affine()
     IJK = np.array(
         [
             [0, 0, 0],

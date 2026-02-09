@@ -5,4 +5,4 @@ Copyright (C) 2026   Simula Research Laboratory
 """
 
 __name__ = "MRI"
-__all__ = ['data', 'segmentation', 'statistics']
+__all__ = ["data", "segmentation", "statistics"]

@@ -76,10 +76,10 @@ def test_compute_stats_patterns(mri_data_dir):
         mri_data_dir,
         "mri-processed/mri_processed_data/sub-01/concentrations/sub-01_ses-01_concentration.nii.gz",
     )
-    seg_pattern = (
-        "(?P<subject>sub-(control|patient)*\\d{2})_seg-(?P<segmentation>[^\\.]+)"
+    seg_pattern = "(?P<subject>sub-(control|patient)*\\d{2})_seg-(?P<segmentation>[^\\.]+)"
+    mri_data_pattern = (
+        "(?P<subject>sub-(control|patient)*\\d{2})_(?P<session>ses-\\d{2})_(?P<mri_data>[^\\.]+)"
     )
-    mri_data_pattern = "(?P<subject>sub-(control|patient)*\\d{2})_(?P<session>ses-\\d{2})_(?P<mri_data>[^\\.]+)"
 
     dataframe = generate_stats_dataframe(
         seg_path,
@@ -104,10 +104,10 @@ def test_compute_stats_timestamp(mri_data_dir):
         mri_data_dir,
         "mri-processed/mri_processed_data/sub-01/concentrations/sub-01_ses-01_concentration.nii.gz",
     )
-    seg_pattern = (
-        "(?P<subject>sub-(control|patient)*\\d{2})_seg-(?P<segmentation>[^\\.]+)"
+    seg_pattern = "(?P<subject>sub-(control|patient)*\\d{2})_seg-(?P<segmentation>[^\\.]+)"
+    mri_data_pattern = (
+        "(?P<subject>sub-(control|patient)*\\d{2})_(?P<session>ses-\\d{2})_(?P<mri_data>[^\\.]+)"
     )
-    mri_data_pattern = "(?P<subject>sub-(control|patient)*\\d{2})_(?P<session>ses-\\d{2})_(?P<mri_data>[^\\.]+)"
     timetable = os.path.join(mri_data_dir, "timetable/timetable.tsv")
     timetable_sequence = "mixed"
 
@@ -158,10 +158,10 @@ def test_compute_mri_stats_cli(tmp_path, mri_data_dir):
         mri_data_dir,
         "mri-processed/mri_processed_data/sub-01/concentrations/sub-01_ses-01_concentration.nii.gz",
     )
-    seg_pattern = (
-        "(?P<subject>sub-(control|patient)*\\d{2})_seg-(?P<segmentation>[^\\.]+)"
+    seg_pattern = "(?P<subject>sub-(control|patient)*\\d{2})_seg-(?P<segmentation>[^\\.]+)"
+    mri_data_pattern = (
+        "(?P<subject>sub-(control|patient)*\\d{2})_(?P<session>ses-\\d{2})_(?P<mri_data>[^\\.]+)"
     )
-    mri_data_pattern = "(?P<subject>sub-(control|patient)*\\d{2})_(?P<session>ses-\\d{2})_(?P<mri_data>[^\\.]+)"
     timetable = os.path.join(mri_data_dir, "timetable/timetable.tsv")
     timetable_sequence = "mixed"
 

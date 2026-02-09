@@ -17,16 +17,14 @@ from MRI.data.io import load_mri_data
 from MRI.data.orientation import assert_same_space
 from MRI.segmentation.groups import default_segmentation_groups
 from MRI.segmentation.lookup_table import read_lut
-from MRI.statistics.utils import (
-    voxel_count_to_ml_scale,
-    find_timestamp,
-    prepend_info
-)
+from MRI.statistics.utils import voxel_count_to_ml_scale, find_timestamp, prepend_info
 
 
 @click.group()
 def mristats():
     pass
+
+
 @mristats.command("compute")
 @click.option("--segmentation", "-s", "seg_path", type=Path, required=True)
 @click.option("--mri", "-m", "mri_paths", multiple=True, type=Path, required=True)
@@ -37,7 +35,7 @@ def mristats():
 @click.option("--mri_regex", "-mr", "mri_data_pattern", type=str)
 @click.option("--lut", "-lt", "lut_path", type=Path)
 @click.option("--info", "-i", "info_dict", type=dict)
-## FIXME : Need to check that all the given mri in mri_paths 
+## FIXME : Need to check that all the given mri in mri_paths
 ## are registered to the same baseline MRI - this is done in create_dataframe
 def compute_mri_stats(
     seg_path: str | Path,
@@ -66,7 +64,7 @@ def compute_mri_stats(
             seg_pattern,
             mri_data_pattern,
             lut_path,
-            info_dict
+            info_dict,
         )
         for path in mri_paths
     ]
@@ -78,13 +76,23 @@ def compute_mri_stats(
 @click.option("--stats_file", "-f", "stats_file", type=Path, required=True)
 @click.option("--region", "-r", "region", type=str)
 @click.option("--info", "-i", "info", type=str)
-def get_stats_value(
-  stats_file: str | Path,
-  region: str,
-  info: str
-):
+def get_stats_value(stats_file: str | Path, region: str, info: str):
     assert region in default_segmentation_groups().keys()
-    assert info in ["sum", "mean", "median", "std", "min", "max", "PC1", "PC5", "PC25", "PC75", "PC90", "PC95", "PC99"]
+    assert info in [
+        "sum",
+        "mean",
+        "median",
+        "std",
+        "min",
+        "max",
+        "PC1",
+        "PC5",
+        "PC25",
+        "PC75",
+        "PC90",
+        "PC95",
+        "PC99",
+    ]
 
     df = pd.read_csv(stats_file, sep=";")
 
@@ -105,7 +113,6 @@ def generate_stats_dataframe(
     lut_path: Optional[Path] = None,
     info_dict: Optional[dict] = None,
 ) -> pd.DataFrame:
-
     # Load the data (mri and seg)
     mri = load_mri_data(mri_path, dtype=np.single)
     seg = load_mri_data(seg_path, dtype=np.int16)
@@ -114,9 +121,7 @@ def generate_stats_dataframe(
     lut = read_lut(lut_path)
     # Get LUT info
     seg_labels = np.unique(seg.data[seg.data != 0])
-    lut_regions = lut.loc[lut.label.isin(seg_labels), ["label", "description"]].to_dict(
-        "records"
-    )
+    lut_regions = lut.loc[lut.label.isin(seg_labels), ["label", "description"]].to_dict("records")
     regions = {
         **{d["description"]: sorted([d["label"]]) for d in lut_regions},
         **default_segmentation_groups(),
@@ -124,24 +129,30 @@ def generate_stats_dataframe(
     # Get SEG info
     seg_info = {}
     if seg_pattern is not None:
-        seg_pattern = fr"{seg_pattern}"
+        seg_pattern = rf"{seg_pattern}"
         if (m := re.match(seg_pattern, Path(seg_path).name)) is not None:
             seg_info = m.groupdict()
         else:
-            raise RuntimeError(f"Segmentation filename {seg_path.name} does not match the provided pattern.")
+            raise RuntimeError(
+                f"Segmentation filename {seg_path.name} does not match the provided pattern."
+            )
     elif info_dict is not None:
-        seg_info["segmentation"] = info_dict["segmentation"] if "segmentation" in info_dict else None
+        seg_info["segmentation"] = (
+            info_dict["segmentation"] if "segmentation" in info_dict else None
+        )
         seg_info["subject"] = info_dict["subject"] if "subject" in info_dict else None
     else:
         seg_info = {"segmentation": None, "subject": None}
     # Get MRI info
     mri_info = {}
     if mri_data_pattern is not None:
-        mri_data_pattern = fr"{mri_data_pattern}"
+        mri_data_pattern = rf"{mri_data_pattern}"
         if (m := re.match(mri_data_pattern, Path(mri_path).name)) is not None:
             mri_info = m.groupdict()
         else:
-            raise RuntimeError(f"MRI data filename {mri_path.name} does not match the provided pattern.")
+            raise RuntimeError(
+                f"MRI data filename {mri_path.name} does not match the provided pattern."
+            )
     elif info_dict is not None:
         mri_info["mri_data"] = info_dict["mri_data"] if "mri_data" in info_dict else None
         mri_info["subject"] = info_dict["subject"] if "subject" in info_dict else None
@@ -194,10 +205,7 @@ def generate_stats_dataframe(
             "median": np.median(region_data),
             "std": np.std(region_data),
             "min": np.min(region_data),
-            **{
-                f"PC{pc}": np.quantile(region_data, pc / 100)
-                for pc in [1, 5, 25, 75, 90, 95, 99]
-            },
+            **{f"PC{pc}": np.quantile(region_data, pc / 100) for pc in [1, 5, 25, 75, 90, 95, 99]},
             "max": np.max(region_data),
         }
         records.append({**record, **stats})

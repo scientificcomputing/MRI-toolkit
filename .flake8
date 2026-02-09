@@ -3,5 +3,5 @@
 ignore = E501
 
 # Exclude specific directories from being scanned at all
-exclude = 
+exclude =
     .git,
