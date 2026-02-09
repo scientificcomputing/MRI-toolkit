@@ -16,6 +16,7 @@ dependencies = [
   "click",
   "tqdm",
   "numpy",
+  "rich-argparse",
   "nibabel",
   "pandas"]
 
@@ -33,6 +34,10 @@ all = ["mri-toolkit[extra,test,pypi]"]
 
 [project.urls]
 Homepage = "https://github.com/scientificcomputing/mri-toolkit.git"
+
+
+[project.scripts]
+mritk = "mritk.cli:main"
 
 [tool.mypy]
 ignore_missing_imports = true # Does not show errors when importing untyped libraries
