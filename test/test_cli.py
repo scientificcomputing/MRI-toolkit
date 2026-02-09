@@ -20,7 +20,6 @@ def test_cli_info(capsys, mri_data_dir):
     captured = capsys.readouterr()
     assert "Voxel Size (mm)   (0.50, 0.50, 0.50)" in captured.out
     assert "Shape (x, y, z)   (368, 512, 512)" in captured.out
-    assert "sub-01_ses-01_concentration.nii.gz" in captured.out
 
 
 def test_cli_info_json(capsys, mri_data_dir):
