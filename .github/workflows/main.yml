@@ -10,6 +10,7 @@ jobs:
     uses: ./.github/workflows/setup-data.yml
 
   build:
+    needs: prepare-data
     env:
       MRITK_TEST_DATA_FOLDER: ./test_data
 
