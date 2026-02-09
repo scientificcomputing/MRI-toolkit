@@ -10,21 +10,6 @@ from click.testing import CliRunner
 from pathlib import Path
 
 from mritk.statistics.compute_stats import generate_stats_dataframe, compute_mri_stats
-import pytest
-import download_data
-
-links = {
-    "mri-processed.zip": "https://zenodo.org/records/14266867/files/mri-processed.zip?download=1",
-    "timetable.tsv": "https://github.com/jorgenriseth/gonzo/blob/main/mri_dataset/timetable.tsv?raw=true",
-}
-
-
-@pytest.fixture(scope="session")
-def mri_data_dir(tmp_path_factory):
-    data_dir = tmp_path_factory.mktemp("mri_test_data")
-    download_data.download_multiple(links, data_dir)
-
-    return data_dir
 
 
 def test_compute_stats_default(mri_data_dir):

@@ -9,20 +9,6 @@ import numpy as np
 import os
 
 from mritk.data.io import load_mri_data, save_mri_data
-import pytest
-import download_data
-
-links = {
-    "mri-processed.zip": "https://zenodo.org/records/14266867/files/mri-processed.zip?download=1",
-}
-
-
-@pytest.fixture(scope="session")
-def mri_data_dir(tmp_path_factory):
-    data_dir = tmp_path_factory.mktemp("mri_test_data")
-    download_data.download_multiple(links, data_dir)
-
-    return data_dir
 
 
 def test_mri_io_nifti(tmp_path, mri_data_dir):

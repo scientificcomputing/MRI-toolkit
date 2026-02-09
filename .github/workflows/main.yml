@@ -6,7 +6,12 @@ on:
     branches: [main]
 
 jobs:
+  prepare-data:
+    uses: ./.github/workflows/setup-data.yml
+
   build:
+    env:
+      MRITK_TEST_DATA_FOLDER: ./test_data
 
     name: Test on ${{ matrix.os }} with Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
@@ -18,7 +23,15 @@ jobs:
 
 
     steps:
-    - uses: actions/checkout@v6
+    - name: Checkout
+      uses: actions/checkout@v6
+
+    - name: Download Shared Data
+      uses: actions/download-artifact@v4
+      with:
+        name: shared-test-data
+        path: ${{ env.MRITK_TEST_DATA_FOLDER }} # Where you want the data to appear in this runner
+
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6
       with:
@@ -26,7 +39,7 @@ jobs:
         allow-prereleases: true
 
 
-    - name: Install gotranx
+    - name: Install mritk
       run: |
         python -m pip install -e ".[test]"
 
