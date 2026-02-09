@@ -44,7 +44,7 @@ jobs:
 
 
       - name: Upload Data Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: shared-test-data
           path: data/ # The folder you want to share
