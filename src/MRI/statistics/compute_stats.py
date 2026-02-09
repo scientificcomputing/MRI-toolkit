@@ -13,11 +13,11 @@ import pandas as pd
 import tqdm
 import click
 
-from MRI.data.io import load_mri_data
-from MRI.data.orientation import assert_same_space
-from MRI.segmentation.groups import default_segmentation_groups
-from MRI.segmentation.lookup_table import read_lut
-from MRI.statistics.utils import voxel_count_to_ml_scale, find_timestamp, prepend_info
+from ..data.io import load_mri_data
+from ..data.orientation import assert_same_space
+from ..segmentation.groups import default_segmentation_groups
+from ..segmentation.lookup_table import read_lut
+from .utils import voxel_count_to_ml_scale, find_timestamp, prepend_info
 
 
 @click.group()
