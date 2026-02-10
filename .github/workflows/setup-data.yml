@@ -40,7 +40,7 @@ jobs:
       - name: Download test data
         if: steps.cache-data.outputs.cache-hit != 'true'
         run: |
-            python3 -m mritk datasets test-data -o data
+            python3 -m mritk datasets download test-data -o data
 
 
       - name: Upload Data Artifact
