@@ -1,5 +1,5 @@
 [project]
-name = "mri-toolkit"
+name = "mritk"
 authors = [
     { name = "Jørgen Riseth", email = "jnriseth@gmail.com" },
     { name = "Henrik Finsberg", email = "henriknf@simula.no" },
@@ -51,7 +51,7 @@ docs = [
     "myst-parser",
     "sphinx-multitoc-numbering",
 ]
-all = ["mri-toolkit[extra,test,pypi,show,napari]"]
+all = ["mritk[extra,test,pypi,show,napari]"]
 
 
 [project.urls]

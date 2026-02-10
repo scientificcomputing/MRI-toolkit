@@ -5,6 +5,13 @@ The `napari` command opens the specified MRI file in the [Napari](https://napari
 
 :::{note}
 This command requires the optional `[napari]` dependencies and a desktop environment to display the GUI.
+
+You can install these with the following command:
+
+ ```bash
+ pip install mritk[napari]
+ ```
+
 :::
 
 ## Usage

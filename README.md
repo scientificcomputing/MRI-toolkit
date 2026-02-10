@@ -5,7 +5,7 @@
 ## Installation
 
 ```bash
-pip install mri-toolkit
+pip install mritk
 ```
 
 ## Documentation
