@@ -1,0 +1,20 @@
+format: jb-book
+root: README
+
+parts:
+  - caption: Getting Started
+    chapters:
+    - file: "docs/install.md" # Installation instructions (also for extras and development)
+    - file: "docs/datasets.md" # Information about the datasets that can be downloaded with mritk
+  - caption: Command Line Interface
+    chapters:
+    - file: "docs/info.md" # About the mritk info command
+    - file: "docs/show.md" # About the mritk show command
+    - file: "docs/napari.md" # About the mritk napari command
+
+  - caption: Community
+    chapters:
+      - file: "CONTRIBUTING.md" # Contributing guidelines
+  - caption: Python API
+    chapters:
+    - file: "docs/api.rst" # API documentation (generated with sphinx)

@@ -1,9 +1,8 @@
-"""MRI -- Download data for testing
+# MRI -- Download data for testing
 
-Copyright (C) 2026   Henrik Finsberg (henriknf@simula.no)
-Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
-Copyright (C) 2026   Simula Research Laboratory
-"""
+# Copyright (C) 2026   Henrik Finsberg (henriknf@simula.no)
+# Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
+# Copyright (C) 2026   Simula Research Laboratory
 
 import logging
 from dataclasses import dataclass
@@ -121,7 +120,7 @@ class ProgressBar:
         self.tqdm.update(progress - self.tqdm.n)
 
 
-def list_datasets():
+def list_datasets_verbose(key: str):
     from rich.console import Console
     from rich.table import Table
     from rich.panel import Panel
@@ -130,46 +129,69 @@ def list_datasets():
 
     console = Console()
     datasets = get_datasets()
+    if key not in datasets:
+        console.print(f"[bold red]Error:[/bold red] Unknown dataset key: {key}")
+        console.print(f"Available datasets: {', '.join(datasets.keys())}")
+        return
+    dataset = datasets[key]
 
-    console.print(Panel.fit("[bold cyan]Available Datasets[/bold cyan]", border_style="cyan"))
+    # Create a table for the files/links
+    link_table = Table(box=box.SIMPLE, show_header=True, header_style="bold magenta", expand=True)
+    link_table.add_column("Filename", style="green")
+    link_table.add_column("URL", style="blue", overflow="fold")
+
+    for filename, url in dataset.links.items():
+        link_table.add_row(filename, url)
+
+    # Format description text (strip whitespace for cleaner output)
+    description_text = Text(
+        dataset.description.strip().replace("            ", "").replace("\n", " "),
+        style="white",
+    )
+
+    # Create the main content grid
+    content = Table.grid(padding=1)
+    content.add_column(style="bold yellow", justify="right")
+    content.add_column(style="white")
+
+    content.add_row("Key:", key)
+    content.add_row("DOI:", dataset.doi)
+    content.add_row("License:", dataset.license)
+    content.add_row("Description:", description_text)
+    content.add_row("Files:", link_table)
+
+    # Wrap in a Panel
+    console.print(
+        Panel(
+            content,
+            title=f"[bold]{dataset.name}[/bold]",
+            subtitle=f"[dim]Key: {key}[/dim]",
+            border_style="green",
+            expand=True,
+        )
+    )
+    console.print("")  # Add spacing between panels
+
+
+def list_datasets():
+    """Prints a simple table with only Key, Name and DOI."""
+
+    from rich.console import Console
+    from rich.table import Table
+    from rich import box
+
+    console = Console()
+    datasets = get_datasets()
+
+    table = Table(title="Available Datasets", box=box.ROUNDED, show_header=True, header_style="bold magenta")
+    table.add_column("Key", style="cyan", no_wrap=True)
+    table.add_column("Name", style="bold white")
+    table.add_column("DOI", style="green")
 
     for key, dataset in datasets.items():
-        # Create a table for the files/links
-        link_table = Table(box=box.SIMPLE, show_header=True, header_style="bold magenta", expand=True)
-        link_table.add_column("Filename", style="green")
-        link_table.add_column("URL", style="blue", overflow="fold")
+        table.add_row(key, dataset.name, dataset.doi)
 
-        for filename, url in dataset.links.items():
-            link_table.add_row(filename, url)
-
-        # Format description text (strip whitespace for cleaner output)
-        description_text = Text(
-            dataset.description.strip().replace("            ", "").replace("\n", " "),
-            style="white",
-        )
-
-        # Create the main content grid
-        content = Table.grid(padding=1)
-        content.add_column(style="bold yellow", justify="right")
-        content.add_column(style="white")
-
-        content.add_row("Key:", key)
-        content.add_row("DOI:", dataset.doi)
-        content.add_row("License:", dataset.license)
-        content.add_row("Description:", description_text)
-        content.add_row("Files:", link_table)
-
-        # Wrap in a Panel
-        console.print(
-            Panel(
-                content,
-                title=f"[bold]{dataset.name}[/bold]",
-                subtitle=f"[dim]Key: {key}[/dim]",
-                border_style="green",
-                expand=True,
-            )
-        )
-        console.print("")  # Add spacing between panels
+    console.print(table)
 
 
 def add_arguments(parser):
@@ -186,13 +208,19 @@ def add_arguments(parser):
     download_parser.add_argument("-o", "--outdir", type=Path, help="Output directory to download test data")
 
     subparsers.add_parser("list", help="List available datasets")
+    info_parser = subparsers.add_parser("info", help="Show detailed information about a dataset")
+    info_parser.add_argument(
+        "dataset",
+        type=str,
+        choices=choices,
+        help=f"Dataset to show information about (choices: {', '.join(choices)})",
+    )
 
 
 def dispatch(args):
     subcommand = args.pop("datasets-command", None)
     if subcommand == "list":
         list_datasets()
-        return
     elif subcommand == "download":
         dataset = args.pop("dataset")
         outdir = args.pop("outdir")
@@ -207,6 +235,11 @@ def dispatch(args):
 
         links = datasets[dataset].links
         download_multiple(links, outdir)
+
+    elif subcommand == "info":
+        dataset = args.pop("dataset")
+        list_datasets_verbose(dataset)
+
     else:
         raise ValueError(f"Unknown subcommand: {subcommand}")
 
