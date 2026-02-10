@@ -15,9 +15,9 @@ The documentation is available at [https://scientificcomputing.github.io/mri-too
 
 ## Quick Start
 
-To get started with `mri-toolkit`, you can use the command-line interface (CLI) to inspect and analyze your MRI data. Here are some example commands
+To get started with `mri-toolkit`, you can use the command-line interface (CLI) to inspect and analyze your MRI data.
 
-TODO: Add some examples
+![readme](https://github.com/user-attachments/assets/404bc4be-7267-4d1c-9126-0bee7c4a316c)
 
 
 ## Features
