@@ -6,7 +6,69 @@
 
 
 import numpy as np
+
 from .base import MRIData
+
+
+def physical_to_voxel_indices(physical_coordinates: np.ndarray, affine: np.ndarray, round_coords: bool = True) -> np.ndarray:
+    """Transform physical coordinates to voxel indices using an affine matrix.
+
+    This function maps coordinates from physical space (e.g., FEM degrees of freedom)
+    back to the image voxel space by applying the inverse of the provided affine
+    transformation matrix.
+
+    Args:
+        physical_coordinates: (N, 3) array of coordinates in physical space (world coordinates).
+        affine: (4, 4) affine transformation matrix mapping voxel indices to physical space.
+        round_coords: If True, rounds the resulting voxel coordinates to the nearest
+            integer and casts them to `int`. If False, returns floating-point voxel coordinates.
+            Defaults to True.
+
+    Returns:
+        (N, 3) array of voxel indices (or coordinates).
+    """
+    # Note: Assumes apply_affine is available in the scope or imported
+    img_space_coords = apply_affine(np.linalg.inv(affine), physical_coordinates)
+    if round_coords:
+        return np.rint(img_space_coords).astype(int)
+    return img_space_coords
+
+
+def find_nearest_valid_voxels(query_indices: np.ndarray, mask: np.ndarray, k: int) -> np.ndarray:
+    """Find the nearest valid voxels in a mask for a set of query indices.
+
+    Uses a KDTree to find the `k` nearest neighbors for each point in `query_indices`
+    where the neighbors are restricted to positions where `mask` is True.
+
+    Args:
+        query_indices: (N, 3) array of voxel indices (or coordinates) to find neighbors for.
+        mask: Boolean array of shape (X, Y, Z). Neighbors will only be selected from
+            coordinates where this mask is True.
+        k: The number of nearest neighbors to find for each query point.
+
+    Returns:
+        Array of nearest neighbor indices.
+        - If k=1: Returns shape (3, 1, N) containing the coordinates of the single nearest neighbor.
+        - If k>1: Returns shape (3, k, N) containing the coordinates of the k nearest neighbors.
+
+    Raises:
+        ValueError: If the provided mask contains no valid (True) entries.
+    """
+    import scipy.spatial
+
+    valid_inds = np.argwhere(mask)
+    if len(valid_inds) == 0:
+        raise ValueError("No valid indices found in mask.")
+
+    tree = scipy.spatial.KDTree(valid_inds)
+    _, indices = tree.query(query_indices, k=k)
+
+    # Transpose to match the expected output shape (3, k, N) or (3, 1, N)
+    dof_neighbours = valid_inds[indices].T
+
+    if k == 1:
+        dof_neighbours = dof_neighbours[:, np.newaxis, :]
+    return dof_neighbours
 
 
 def apply_affine(T: np.ndarray, X: np.ndarray) -> np.ndarray:
