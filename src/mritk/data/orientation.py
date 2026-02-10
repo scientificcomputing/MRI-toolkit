@@ -79,9 +79,7 @@ def change_of_coordinates_map(orientation_in: str, orientation_out: str) -> np.n
 
             if idx2 == len(orientation_out):
                 print(char1, char2)
-                raise ValueError(
-                    f"Couldn't find axis in '{orientation_out}' corresponding to '{char1}'"
-                )
+                raise ValueError(f"Couldn't find axis in '{orientation_out}' corresponding to '{char1}'")
     index_flip = np.sign(order).astype(int)
     index_order = np.abs(order).astype(int) - 1  # Map back to 0-indexing
 

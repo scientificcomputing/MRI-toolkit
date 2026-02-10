@@ -11,11 +11,7 @@ def test_cli_version(capsys):
 
 
 def test_cli_info(capsys, mri_data_dir):
-    test_file = (
-        mri_data_dir
-        / "mri-processed/mri_processed_data/sub-01"
-        / "concentrations/sub-01_ses-01_concentration.nii.gz"
-    )
+    test_file = mri_data_dir / "mri-processed/mri_processed_data/sub-01" / "concentrations/sub-01_ses-01_concentration.nii.gz"
     args = ["info", str(test_file)]
     cli.main(args)
     captured = capsys.readouterr()
@@ -24,11 +20,7 @@ def test_cli_info(capsys, mri_data_dir):
 
 
 def test_cli_info_json(capsys, mri_data_dir):
-    test_file = (
-        mri_data_dir
-        / "mri-processed/mri_processed_data/sub-01"
-        / "concentrations/sub-01_ses-01_concentration.nii.gz"
-    )
+    test_file = mri_data_dir / "mri-processed/mri_processed_data/sub-01" / "concentrations/sub-01_ses-01_concentration.nii.gz"
     args = ["info", str(test_file), "--json"]
     cli.main(args)
     captured = capsys.readouterr()

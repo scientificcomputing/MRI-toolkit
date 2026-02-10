@@ -43,9 +43,7 @@ def load_mri_data(
         return mri
 
 
-def save_mri_data(
-    mri: MRIData, path: Path, dtype: npt.DTypeLike, intent_code: Optional[int] = None
-):
+def save_mri_data(mri: MRIData, path: Path, dtype: npt.DTypeLike, intent_code: Optional[int] = None):
     # TODO : Choose other way to check extension than regex ?
     suffix_regex = re.compile(r".+(?P<suffix>(\.nii(\.gz|)|\.mg(z|h)))")
     m = suffix_regex.match(Path(path).name)

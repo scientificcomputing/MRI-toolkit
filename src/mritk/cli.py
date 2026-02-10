@@ -6,7 +6,7 @@ from typing import Sequence, Optional
 
 from rich_argparse import RichHelpFormatter
 
-from . import download_data, info, statistics, show, napari
+from . import datasets, info, statistics, show, napari
 
 
 def version_info():
@@ -48,33 +48,21 @@ def setup_parser():
     subparsers = parser.add_subparsers(dest="command")
 
     # Download test data parser
-    download_parser = subparsers.add_parser(
-        "download-test-data", help="Download test data", formatter_class=parser.formatter_class
-    )
-    download_parser.add_argument("outdir", type=Path, help="Output directory to download test data")
+    datasets_parser = subparsers.add_parser("datasets", help="Download datasets", formatter_class=parser.formatter_class)
+    datasets.add_arguments(datasets_parser)
 
-    info_parser = subparsers.add_parser(
-        "info", help="Display information about a file", formatter_class=parser.formatter_class
-    )
+    info_parser = subparsers.add_parser("info", help="Display information about a file", formatter_class=parser.formatter_class)
     info_parser.add_argument("file", type=Path, help="File to display information about")
 
-    info_parser.add_argument(
-        "--json", action="store_true", help="Output information in JSON format"
-    )
+    info_parser.add_argument("--json", action="store_true", help="Output information in JSON format")
 
-    stats_parser = subparsers.add_parser(
-        "stats", help="Compute MRI statistics", formatter_class=parser.formatter_class
-    )
+    stats_parser = subparsers.add_parser("stats", help="Compute MRI statistics", formatter_class=parser.formatter_class)
     statistics.cli.add_arguments(stats_parser)
 
-    show_parser = subparsers.add_parser(
-        "show", help="Show MRI data in a terminal", formatter_class=parser.formatter_class
-    )
+    show_parser = subparsers.add_parser("show", help="Show MRI data in a terminal", formatter_class=parser.formatter_class)
     show.add_arguments(show_parser)
 
-    napari_parser = subparsers.add_parser(
-        "napari", help="Show MRI data using napari", formatter_class=parser.formatter_class
-    )
+    napari_parser = subparsers.add_parser("napari", help="Show MRI data using napari", formatter_class=parser.formatter_class)
     napari.add_arguments(napari_parser)
 
     return parser
@@ -90,9 +78,8 @@ def dispatch(parser: argparse.ArgumentParser, argv: Optional[Sequence[str]] = No
     command = args.pop("command")
     logger = logging.getLogger(__name__)
     try:
-        if command == "download-test-data":
-            outdir = args.pop("outdir")
-            download_data.download_test_data(outdir)
+        if command == "datasets":
+            datasets.dispatch(args)
         elif command == "info":
             file = args.pop("file")
             info.nifty_info(file, json_output=args.pop("json"))
