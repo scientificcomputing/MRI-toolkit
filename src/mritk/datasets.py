@@ -195,7 +195,11 @@ def dispatch(args):
         return
     elif subcommand == "download":
         dataset = args.pop("dataset")
-        outdir = args.pop("outdir", Path.cwd())
+        outdir = args.pop("outdir")
+        if outdir is None:
+            logger.error("Output directory (-o or --outdir) is required for downloading datasets.")
+            return
+
         datasets = get_datasets()
         if dataset not in datasets:
             logger.error(f"Unknown dataset: {dataset}. Available datasets: {', '.join(datasets.keys())}")
@@ -204,7 +208,7 @@ def dispatch(args):
         links = datasets[dataset].links
         download_multiple(links, outdir)
     else:
-        logger.error(f"Unknown subcommand: {subcommand}")
+        raise ValueError(f"Unknown subcommand: {subcommand}")
 
 
 # def download_data(outdir: Path, file_info: tuple) -> None:
