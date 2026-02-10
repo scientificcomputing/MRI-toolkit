@@ -4,11 +4,13 @@
  It displays three orthogonal slices: Sagittal, Coronal, and Axial.
 
  :::{note}
+
  This command requires the optional `[show]` dependencies, which include `textual-image`, `pillow` and `matplotlib`. You can install these with the following command:
 
  ```bash
  pip install mri-toolkit[show]
  ```
+
  :::
 
  ## Usage

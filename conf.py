@@ -23,7 +23,7 @@ exclude_patterns = [
 extensions = [
     "sphinx_togglebutton",
     "sphinx_copybutton",
-    "myst_nb",
+    "myst_parser",
     "sphinx_comments",
     "sphinx_external_toc",
     "sphinx.ext.intersphinx",
@@ -35,6 +35,22 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinx_codeautolink",
     "sphinx_multitoc_numbering",
+]
+myst_enable_extensions = [
+    "amsmath",
+    "attrs_inline",
+    "colon_fence",
+    "deflist",
+    "dollarmath",
+    "fieldlist",
+    "html_admonition",
+    "html_image",
+    "linkify",
+    "replacements",
+    "smartquotes",
+    "strikethrough",
+    "substitution",
+    "tasklist",
 ]
 external_toc_exclude_missing = True
 external_toc_path = "_toc.yml"
@@ -77,7 +93,6 @@ intersphinx_mapping = {
     "packaging": ["https://packaging.pypa.io/en/stable/", None],
 }
 latex_engine = "pdflatex"
-myst_enable_extensions = ["amsmath", "dollarmath", "linkify"]
 myst_url_schemes = ["mailto", "http", "https"]
 nb_custom_formats = {".py": ["jupytext.reads", {"fmt": "py"}]}
 nb_execution_allow_errors = False

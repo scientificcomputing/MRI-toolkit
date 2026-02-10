@@ -4,14 +4,6 @@ Thank you for your interest in contributing to `mri-toolkit`! We welcome contrib
 
 This document outlines the guidelines for contributing to ensure a smooth process for everyone involved.
 
-## Table of Contents
-1. [Reporting Issues](#reporting-issues)
-2. [Setting Up Your Development Environment](#setting-up-your-development-environment)
-3. [Code Style and Quality](#code-style-and-quality)
-4. [Running Tests](#running-tests)
-5. [Submitting a Pull Request](#submitting-a-pull-request)
-6. [License](#license)
-
 ## Reporting Issues
 
 If you encounter a bug or have a feature request, please use the [GitHub Issues](https://github.com/scientificcomputing/mri-toolkit/issues) tracker.

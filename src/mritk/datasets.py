@@ -1,9 +1,8 @@
-"""MRI -- Download data for testing
+# MRI -- Download data for testing
 
-Copyright (C) 2026   Henrik Finsberg (henriknf@simula.no)
-Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
-Copyright (C) 2026   Simula Research Laboratory
-"""
+# Copyright (C) 2026   Henrik Finsberg (henriknf@simula.no)
+# Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
+# Copyright (C) 2026   Simula Research Laboratory
 
 import logging
 from dataclasses import dataclass

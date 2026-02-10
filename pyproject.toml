@@ -48,7 +48,7 @@ docs = [
     "linkify-it-py",
     "sphinx-design",
     "sphinx-book-theme",
-    "myst-nb",
+    "myst-parser",
     "sphinx-multitoc-numbering",
 ]
 all = ["mri-toolkit[extra,test,pypi,show,napari]"]

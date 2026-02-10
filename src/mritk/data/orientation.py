@@ -1,28 +1,45 @@
-"""MRI Data orientation Module
+# MRI Data orientation Module
 
-Copyright (C) 2026   Jørgen Riseth (jnriseth@gmail.com)
-Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
-Copyright (C) 2026   Simula Research Laboratory
-"""
+# Copyright (C) 2026   Jørgen Riseth (jnriseth@gmail.com)
+# Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
+# Copyright (C) 2026   Simula Research Laboratory
+
 
 import numpy as np
 from .base import MRIData
 
 
 def apply_affine(T: np.ndarray, X: np.ndarray) -> np.ndarray:
-    """Apply homogeneous-coordinate affine matrix T to each row of of matrix
-    X of shape (N, 3)"""
+    """Apply a homogeneous affine transformation matrix to a set of points.
+
+    Args:
+        T: (4, 4) affine transformation matrix.
+        X: (N, 3) matrix of points, where each row is a point (x, y, z).
+
+    Returns:
+        (N, 3) matrix of transformed points.
+    """
     A = T[:-1, :-1]
     b = T[:-1, -1]
     return A.dot(X.T).T + b
 
 
 def data_reorientation(mri_data: MRIData) -> MRIData:
-    """Reorients the data-array and affine map such that the affine map is
-    closest to the identity-matrix, such that increasing the first index
-    corresponds to increasing the first coordinate in real space, and so on.
+    """Reorient the data array and affine matrix to the canonical orientation.
 
-    The target coordinate system is still the same (i.e. RAS stays RAS)
+    This function adjusts the data array layout (via transpositions and flips)
+    so that the affine matrix becomes as close to the identity matrix as possible.
+    This ensures that increasing array indices correspond to increasing spatial
+    coordinates in the physical space.
+
+    Note:
+        The physical coordinate system remains unchanged (e.g., RAS stays RAS).
+
+    Args:
+        mri_data: The input MRI data object containing the data array and affine.
+
+    Returns:
+        A new MRIData object with reoriented data and updated affine matrix.
     """
     A = mri_data.affine[:3, :3]
     flips = np.sign(A[np.argmax(np.abs(A), axis=0), np.arange(3)]).astype(int)
@@ -47,12 +64,26 @@ def data_reorientation(mri_data: MRIData) -> MRIData:
 
 
 def change_of_coordinates_map(orientation_in: str, orientation_out: str) -> np.ndarray:
-    """Creates an affine map for change of coordinate system based on the
-    string identifiers
-     L(eft) <-> R(ight)
-     P(osterior) <-> A(nterior)
-     I(nferior) <-> S(uperior)
-    change of coordinate system affine map"""
+    """Create an affine transformation map between two coordinate systems.
+
+    This generates a 4x4 affine matrix that maps coordinates from the `orientation_in`
+    system to the `orientation_out` system based on standard anatomical axis labels.
+
+    Supported Labels:
+        - L (Left) <-> R (Right)
+        - P (Posterior) <-> A (Anterior)
+        - I (Inferior) <-> S (Superior)
+
+    Args:
+        orientation_in: String defining the source orientation (e.g., "RAS").
+        orientation_out: String defining the target orientation (e.g., "LIA").
+
+    Returns:
+        (4, 4) affine transformation matrix.
+
+    Raises:
+        ValueError: If an invalid axis label is provided or if axes cannot be matched.
+    """
     axes_labels = {
         "R": 0,
         "L": 0,
@@ -92,6 +123,19 @@ def change_of_coordinates_map(orientation_in: str, orientation_out: str) -> np.n
 
 
 def assert_same_space(mri1: MRIData, mri2: MRIData, rtol: float = 1e-5):
+    """Assert that two MRI datasets share the same physical space.
+
+    Checks if the data shapes are identical and if the affine transformation
+    matrices are close within a specified relative tolerance.
+
+    Args:
+        mri1: The first MRI data object.
+        mri2: The second MRI data object.
+        rtol: Relative tolerance for comparing affine matrices. Defaults to 1e-5.
+
+    Raises:
+        ValueError: If shapes differ or if affine matrices are not sufficiently close.
+    """
     if mri1.data.shape == mri2.data.shape and np.allclose(mri1.affine, mri2.affine, rtol):
         return
     with np.printoptions(precision=5):
