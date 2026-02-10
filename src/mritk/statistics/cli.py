@@ -97,10 +97,7 @@ def get_stats_value(stats_file: Path, region: str, info: str, **kwargs):
     # Validate inputs
     valid_regions = default_segmentation_groups().keys()
     if region not in valid_regions:
-        console.print(
-            f"[bold red]Error:[/bold red] Region '{region}' "
-            "not found in default segmentation groups."
-        )
+        console.print(f"[bold red]Error:[/bold red] Region '{region}' not found in default segmentation groups.")
         sys.exit(1)
 
     valid_infos = [
@@ -119,10 +116,7 @@ def get_stats_value(stats_file: Path, region: str, info: str, **kwargs):
         "PC99",
     ]
     if info not in valid_infos:
-        console.print(
-            f"[bold red]Error:[/bold red] Info '{info}' "
-            f"is invalid. Choose from: {', '.join(valid_infos)}"
-        )
+        console.print(f"[bold red]Error:[/bold red] Info '{info}' is invalid. Choose from: {', '.join(valid_infos)}")
         sys.exit(1)
 
     if not stats_file.exists():
@@ -142,8 +136,7 @@ def get_stats_value(stats_file: Path, region: str, info: str, **kwargs):
 
         # Output
         console.print(
-            f"[bold cyan]{info}[/bold cyan] for [bold green]{region}[/bold green] "
-            f"= [bold white]{info_value}[/bold white]"
+            f"[bold cyan]{info}[/bold cyan] for [bold green]{region}[/bold green] = [bold white]{info_value}[/bold white]"
         )
         return info_value
 
@@ -156,22 +149,12 @@ def add_arguments(parser: argparse.ArgumentParser):
     subparsers = parser.add_subparsers(dest="stats-command", help="Available commands")
 
     # --- Compute Command ---
-    parser_compute = subparsers.add_parser(
-        "compute", help="Compute MRI statistics", formatter_class=parser.formatter_class
-    )
-    parser_compute.add_argument(
-        "--segmentation", "-s", type=Path, required=True, help="Path to segmentation file"
-    )
-    parser_compute.add_argument(
-        "--mri", "-m", type=Path, nargs="+", required=True, help="Path to MRI data file(s)"
-    )
-    parser_compute.add_argument(
-        "--output", "-o", type=Path, required=True, help="Output CSV file path"
-    )
+    parser_compute = subparsers.add_parser("compute", help="Compute MRI statistics", formatter_class=parser.formatter_class)
+    parser_compute.add_argument("--segmentation", "-s", type=Path, required=True, help="Path to segmentation file")
+    parser_compute.add_argument("--mri", "-m", type=Path, nargs="+", required=True, help="Path to MRI data file(s)")
+    parser_compute.add_argument("--output", "-o", type=Path, required=True, help="Output CSV file path")
     parser_compute.add_argument("--timetable", "-t", type=Path, help="Path to timetable file")
-    parser_compute.add_argument(
-        "--timelabel", "-l", dest="timelabel", type=str, help="Time label sequence"
-    )
+    parser_compute.add_argument("--timelabel", "-l", dest="timelabel", type=str, help="Time label sequence")
     parser_compute.add_argument(
         "--seg_regex",
         "-sr",
@@ -179,24 +162,16 @@ def add_arguments(parser: argparse.ArgumentParser):
         type=str,
         help="Regex pattern for segmentation filename",
     )
-    parser_compute.add_argument(
-        "--mri_regex", "-mr", dest="mri_regex", type=str, help="Regex pattern for MRI filename"
-    )
+    parser_compute.add_argument("--mri_regex", "-mr", dest="mri_regex", type=str, help="Regex pattern for MRI filename")
     parser_compute.add_argument("--lut", "-lt", dest="lut", type=Path, help="Path to Lookup Table")
     parser_compute.add_argument("--info", "-i", type=str, help="Info dictionary as JSON string")
     parser_compute.set_defaults(func=compute_mri_stats)
 
     # --- Get Command ---
-    parser_get = subparsers.add_parser(
-        "get", help="Get specific stats value", formatter_class=parser.formatter_class
-    )
-    parser_get.add_argument(
-        "--stats_file", "-f", type=Path, required=True, help="Path to stats CSV file"
-    )
+    parser_get = subparsers.add_parser("get", help="Get specific stats value", formatter_class=parser.formatter_class)
+    parser_get.add_argument("--stats_file", "-f", type=Path, required=True, help="Path to stats CSV file")
     parser_get.add_argument("--region", "-r", type=str, required=True, help="Region description")
-    parser_get.add_argument(
-        "--info", "-i", type=str, required=True, help="Statistic to retrieve (mean, std, etc.)"
-    )
+    parser_get.add_argument("--info", "-i", type=str, required=True, help="Statistic to retrieve (mean, std, etc.)")
     parser_get.set_defaults(func=get_stats_value)
 
 

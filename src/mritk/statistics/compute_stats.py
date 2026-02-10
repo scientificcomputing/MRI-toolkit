@@ -49,13 +49,9 @@ def generate_stats_dataframe(
         if (m := re.match(seg_pattern, Path(seg_path).name)) is not None:
             seg_info = m.groupdict()
         else:
-            raise RuntimeError(
-                f"Segmentation filename {seg_path.name} does not match the provided pattern."
-            )
+            raise RuntimeError(f"Segmentation filename {seg_path.name} does not match the provided pattern.")
     elif info_dict is not None:
-        seg_info["segmentation"] = (
-            info_dict["segmentation"] if "segmentation" in info_dict else None
-        )
+        seg_info["segmentation"] = info_dict["segmentation"] if "segmentation" in info_dict else None
         seg_info["subject"] = info_dict["subject"] if "subject" in info_dict else None
     else:
         seg_info = {"segmentation": None, "subject": None}
@@ -66,9 +62,7 @@ def generate_stats_dataframe(
         if (m := re.match(mri_data_pattern, Path(mri_path).name)) is not None:
             mri_info = m.groupdict()
         else:
-            raise RuntimeError(
-                f"MRI data filename {mri_path.name} does not match the provided pattern."
-            )
+            raise RuntimeError(f"MRI data filename {mri_path.name} does not match the provided pattern.")
     elif info_dict is not None:
         mri_info["mri_data"] = info_dict["mri_data"] if "mri_data" in info_dict else None
         mri_info["subject"] = info_dict["subject"] if "subject" in info_dict else None

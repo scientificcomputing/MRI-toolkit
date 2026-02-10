@@ -45,11 +45,7 @@ def nifty_info(filename: Path, json_output: bool = False) -> dict[str, typing.An
         return data
 
     # Create a nice header panel
-    console.print(
-        Panel(
-            f"[bold blue]NIfTI File Analysis[/bold blue]\n[green]{filename}[/green]", expand=False
-        )
-    )
+    console.print(Panel(f"[bold blue]NIfTI File Analysis[/bold blue]\n[green]{filename}[/green]", expand=False))
 
     # Create a table for Basic Info
     info_table = Table(

@@ -10,10 +10,7 @@ from mritk.data.io import load_mri_data, save_mri_data
 
 
 def test_mri_io_nifti(tmp_path, mri_data_dir):
-    input_file = (
-        mri_data_dir
-        / "mri-processed/mri_dataset/derivatives/sub-01/ses-01/sub-01_ses-01_acq-mixed_T1map.nii.gz"
-    )
+    input_file = mri_data_dir / "mri-processed/mri_dataset/derivatives/sub-01/ses-01/sub-01_ses-01_acq-mixed_T1map.nii.gz"
 
     output_file = tmp_path / "output_nifti.nii.gz"
 
