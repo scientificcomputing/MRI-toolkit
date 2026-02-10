@@ -18,7 +18,7 @@ from .orientation import data_reorientation
 
 def load_mri_data(
     path: Path | str,
-    dtype: type,
+    dtype: type = np.float64,
     orient: bool = True,
 ) -> MRIData:
     suffix_regex = re.compile(r".+(?P<suffix>(\.nii(\.gz|)|\.mg(z|h)))")

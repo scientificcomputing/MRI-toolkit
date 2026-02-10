@@ -13,26 +13,38 @@ license = "MIT"
 license-files = ["LICENSE"]
 
 dependencies = [
-  "click",
   "tqdm",
   "numpy",
+  "rich-argparse",
   "nibabel",
   "pandas"]
 
 [project.optional-dependencies]
-extra = []
+show = [
+    "textual-image", # Used to show images in terminal
+    "pillow",    # Used to handle image data
+    "matplotlib" # Used for colormaps
+]
+napari = [
+    "napari[all]", # Used for interactive visualization
+]
 test = [
     "pytest",
     "pytest-cov",
+
 ]
 pypi = [
     "build" # Used for building wheels and uploading to pypi
 ]
-all = ["mri-toolkit[extra,test,pypi]"]
+all = ["mri-toolkit[extra,test,pypi,show,napari]"]
 
 
 [project.urls]
 Homepage = "https://github.com/scientificcomputing/mri-toolkit.git"
+
+
+[project.scripts]
+mritk = "mritk.cli:main"
 
 [tool.mypy]
 ignore_missing_imports = true # Does not show errors when importing untyped libraries
