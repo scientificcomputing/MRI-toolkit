@@ -1,5 +1,4 @@
 import pytest
-import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -80,12 +79,12 @@ def test_dispatch_list(mock_list_datasets):
 
 
 @patch("mritk.datasets.get_datasets")
-def test_dispatch_unknown_subcommand(mock_get_datasets, caplog):
+def test_dispatch_unknown_subcommand(mock_get_datasets):
     """Test graceful failure on unknown subcommand."""
     args = {"datasets-command": "unknown"}
-    with caplog.at_level(logging.ERROR):
+    with pytest.raises(ValueError) as excinfo:
         mritk.datasets.dispatch(args)
-    assert "Unknown subcommand" in caplog.text
+    assert "Unknown subcommand" in str(excinfo.value)
 
 
 @patch("rich.console.Console")  # Mock rich.console.Console
