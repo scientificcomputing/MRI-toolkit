@@ -19,7 +19,7 @@ def version_info():
 
     console = Console()
 
-    meta = metadata("mri-toolkit")
+    meta = metadata("mritk")
     toolkit_version = meta["Version"]
     python_version = sys.version.split()[0]
 

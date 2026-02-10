@@ -8,7 +8,7 @@
  This command requires the optional `[show]` dependencies, which include `textual-image`, `pillow` and `matplotlib`. You can install these with the following command:
 
  ```bash
- pip install mri-toolkit[show]
+ pip install mritk[show]
  ```
 
  :::

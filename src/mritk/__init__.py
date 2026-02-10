@@ -8,7 +8,7 @@ from importlib.metadata import metadata
 from . import data, segmentation, statistics
 
 
-meta = metadata("mri-toolkit")
+meta = metadata("mritk")
 __version__ = meta["Version"]
 __author__ = meta["Author-email"]
 __license__ = meta["license-expression"]
