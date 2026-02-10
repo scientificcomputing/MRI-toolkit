@@ -36,6 +36,21 @@ test = [
 pypi = [
     "build" # Used for building wheels and uploading to pypi
 ]
+docs = [
+    "sphinxcontrib-bibtex",
+    "sphinx-copybutton",
+    "sphinx-codeautolink",
+    "sphinx",
+    "jupytext",
+    "sphinx-togglebutton",
+    "sphinx-comments",
+    "sphinx-external-toc",
+    "linkify-it-py",
+    "sphinx-design",
+    "sphinx-book-theme",
+    "myst-nb",
+    "sphinx-multitoc-numbering",
+]
 all = ["mri-toolkit[extra,test,pypi,show,napari]"]
 
 
