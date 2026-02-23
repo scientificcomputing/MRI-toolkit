@@ -17,7 +17,9 @@ dependencies = [
   "numpy",
   "rich-argparse",
   "nibabel",
-  "pandas"]
+  "pandas",
+  "scipy",
+]
 
 [project.optional-dependencies]
 show = [
