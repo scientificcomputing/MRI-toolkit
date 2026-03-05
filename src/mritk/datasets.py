@@ -33,6 +33,7 @@ def get_datasets() -> dict[str, Dataset]:
             license="CC-BY-4.0",
             links={
                 "mri-processed.zip": "https://zenodo.org/records/14266867/files/mri-processed.zip?download=1",
+                "mri-dataset.zip": "https://zenodo.org/records/14266867/files/mri-dataset.zip?download=1",
                 "timetable.tsv": "https://github.com/jorgenriseth/gonzo/blob/main/mri_dataset/timetable.tsv?raw=true",
             },
         ),
