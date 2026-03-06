@@ -12,7 +12,7 @@ jobs:
   build:
     needs: prepare-data
     env:
-      MRITK_TEST_DATA_FOLDER: ./test_data
+      MRITK_TEST_DATA_FOLDER: ./test_data/mritk-test-data/mritk-test-data
 
     name: Test on ${{ matrix.os }} with Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}

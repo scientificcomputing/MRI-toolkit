@@ -15,6 +15,11 @@ import tqdm
 logger = logging.getLogger(__name__)
 
 
+def download_link_google_drive(file_id: str) -> str:
+    # https://gist.github.com/tanaikech/f0f2d122e05bf5f971611258c22c110f
+    return f"https://drive.usercontent.google.com/download?id={file_id}&confirm=xxx"
+
+
 @dataclass
 class Dataset:
     name: str
@@ -29,13 +34,8 @@ def get_datasets() -> dict[str, Dataset]:
         "test-data": Dataset(
             name="Test Data",
             description="A small test dataset for testing functionality (based on the Gonzo dataset).",
-            doi="10.5281/zenodo.14266867",
             license="CC-BY-4.0",
-            links={
-                "mri-processed.zip": "https://zenodo.org/records/14266867/files/mri-processed.zip?download=1",
-                "mri-dataset.zip": "https://zenodo.org/records/14266867/files/mri-dataset.zip?download=1",
-                "timetable.tsv": "https://github.com/jorgenriseth/gonzo/blob/main/mri_dataset/timetable.tsv?raw=true",
-            },
+            links={"mritk-test-data.zip": download_link_google_drive("1Rx-DnT3fBq-3S-0DXgr0ajkANYk8v_dZ")},
         ),
         "gonzo": Dataset(
             name="The Gonzo Dataset",
