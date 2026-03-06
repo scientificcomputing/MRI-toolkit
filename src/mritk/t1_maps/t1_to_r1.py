@@ -1,9 +1,8 @@
-"""T1 to R1 module
+# T1 to R1 module
 
-Copyright (C) 2026   Jørgen Riseth (jnriseth@gmail.com)
-Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
-Copyright (C) 2026   Simula Research Laboratory
-"""
+# Copyright (C) 2026   Jørgen Riseth (jnriseth@gmail.com)
+# Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
+# Copyright (C) 2026   Simula Research Laboratory
 
 import numpy as np
 from pathlib import Path
