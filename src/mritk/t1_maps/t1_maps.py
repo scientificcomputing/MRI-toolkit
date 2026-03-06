@@ -26,11 +26,7 @@ from .utils import (
 )
 
 
-def looklocker_t1map(
-    looklocker_input: Path,
-    timestamps: Path,
-    output: Path = None
-) -> MRIData:
+def looklocker_t1map(looklocker_input: Path, timestamps: Path, output: Path = None) -> MRIData:
     LL_mri = load_mri_data(looklocker_input, dtype=np.single)
     D = LL_mri.data
     affine = LL_mri.affine
@@ -75,7 +71,7 @@ def looklocker_t1map_postprocessing(
     radius: int = 10,
     erode_dilate_factor: float = 1.3,
     mask: Optional[np.ndarray] = None,
-    output: Path = None
+    output: Path = None,
 ) -> MRIData:
     T1map = T1map_mri.data.copy()
     if mask is None:
@@ -115,12 +111,7 @@ def looklocker_t1map_postprocessing(
 
 
 def mixed_t1map(
-    SE_nii_path: Path,
-    IR_nii_path: Path,
-    meta_path: Path,
-    T1_low: float,
-    T1_high: float,
-    output: Path = None
+    SE_nii_path: Path, IR_nii_path: Path, meta_path: Path, T1_low: float, T1_high: float, output: Path = None
 ) -> nibabel.nifti1.Nifti1Image:
     SE = load_mri_data(SE_nii_path, dtype=np.single)
     IR = load_mri_data(IR_nii_path, dtype=np.single)
@@ -148,11 +139,7 @@ def mixed_t1map(
     # return T1map_mri
 
 
-def mixed_t1map_postprocessing(
-    SE_nii_path: Path, 
-    T1_path: Path, 
-    output: Path = None
-) -> nibabel.nifti1.Nifti1Image:
+def mixed_t1map_postprocessing(SE_nii_path: Path, T1_path: Path, output: Path = None) -> nibabel.nifti1.Nifti1Image:
     T1map_nii = nibabel.nifti1.load(T1_path)
 
     SE_mri = load_mri_data(SE_nii_path, np.single)
@@ -170,12 +157,7 @@ def mixed_t1map_postprocessing(
 
 
 def hybrid_t1map(
-    LL_path: Path,
-    mixed_path: Path,
-    csf_mask_path: Path,
-    threshold: float,
-    erode: int = 0,
-    output: Path = None
+    LL_path: Path, mixed_path: Path, csf_mask_path: Path, threshold: float, erode: int = 0, output: Path = None
 ) -> nibabel.nifti1.Nifti1Image:
     mixed_mri = nibabel.nifti1.load(mixed_path)
     mixed = mixed_mri.get_fdata()
