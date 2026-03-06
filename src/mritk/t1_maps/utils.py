@@ -188,6 +188,14 @@ def compare_nifti_images(img_path1, img_path2, data_tolerance=0.0):
     # 1. Compare Image Data
     data1 = img1.get_fdata()
     data2 = img2.get_fdata()
+
+    # Convert NaN to zero (can have NaNs in concentration maps)
+    data1 = np.nan_to_num(data1, nan=0.0) 
+    data2 = np.nan_to_num(data2, nan=0.0)
+
+    print("data 1= ", np.unique(data1))
+    print("data 1= ", np.unique(data2))
+
     # Use np.allclose for data comparison with tolerance, which is often needed
     # for floating-point data, or np.array_equal for exact comparison.
     if data_tolerance > 0:
