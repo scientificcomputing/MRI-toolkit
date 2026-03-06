@@ -11,6 +11,8 @@ import scipy as sp
 import skimage
 import warnings
 from scipy.optimize import OptimizeWarning
+import os
+import nibabel
 
 from ..data.orientation import data_reorientation, change_of_coordinates_map
 from ..data.base import MRIData
@@ -99,6 +101,10 @@ def mri_facemask(vol: np.ndarray, smoothing_level=5):
     return binary
 
 
+def voxel_fit_function(t, x1, x2, x3):
+    return np.abs(x1 * (1.0 - (1 + x2**2) * np.exp(-(x3**2) * t)))
+
+@np.errstate(divide="raise", invalid="raise", over="raise")
 def curve_fit_wrapper(f, t, y, p0):
     """Raises error instead of catching numpy warnings, such that
     these cases may be treated."""
@@ -119,7 +125,7 @@ def fit_voxel(time_s: np.ndarray, pbar, m: np.ndarray) -> np.ndarray:
     if not np.all(np.isfinite(m)):
         return np.nan * np.zeros_like(p0)
     try:
-        popt = curve_fit_wrapper(f, time_s, m, p0)
+        popt = curve_fit_wrapper(voxel_fit_function, time_s, m, p0)
     except (OptimizeWarning, FloatingPointError):
         return np.nan * np.zeros_like(p0)
     except RuntimeError as e:
@@ -156,3 +162,43 @@ def T1_lookup_table(TRse: float, TI: float, TE: float, ETL: int, T1_low: float, 
     Sir = 1 - (1 + Sse) * np.exp(-TI / T1_grid)
     fractionCurve = Sir / Sse
     return fractionCurve, T1_grid
+
+def compare_nifti_images(img_path1, img_path2, data_tolerance=0.0):
+    """
+    Compares two NIfTI images for equality of data, affine, and header.
+
+    Args:
+        img_path1 (str): Path to the first NIfTI file.
+        img_path2 (str): Path to the second NIfTI file.
+        data_tolerance (float): Tolerance for data comparison (use 0.0 for exact equality).
+
+    Returns:
+        bool: True if images are considered the same, False otherwise.
+        list: A list of differences found.
+    """
+    if not os.path.exists(img_path1):
+        return False, [f"File not found: {img_path1}"]
+    if not os.path.exists(img_path2):
+        return False, [f"File not found: {img_path2}"]
+
+    img1 = nibabel.load(img_path1)
+    img2 = nibabel.load(img_path2)
+    differences = []
+
+    # 1. Compare Image Data
+    data1 = img1.get_fdata()
+    data2 = img2.get_fdata()
+    # Use np.allclose for data comparison with tolerance, which is often needed 
+    # for floating-point data, or np.array_equal for exact comparison.
+    if data_tolerance > 0:
+        data_equal = np.allclose(data1, data2, atol=data_tolerance)
+    else:
+        data_equal = np.array_equal(data1, data2)
+
+    deviation = np.mean(np.abs(data1 - data2))
+    assert data_equal, f"Data mismatch (mean absolute deviation: {deviation:.4f})"
+
+    # Overall result
+    is_same = not differences
+    assert False
+    return is_same, differences
