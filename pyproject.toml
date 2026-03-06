@@ -23,7 +23,9 @@ dependencies = [
   "nibabel",
   "pandas",
   "scipy",
-]
+  "scikit-image",
+  "pydicom",
+  "dcm2niix"]
 
 [project.optional-dependencies]
 show = [

@@ -31,9 +31,9 @@ def mock_datasets():
 def test_get_datasets_structure():
     """Ensure get_datasets returns a dict of Dataset objects."""
     datasets = mritk.datasets.get_datasets()
-    assert "test-data" in datasets
-    assert isinstance(datasets["test-data"], Dataset)
-    assert datasets["test-data"].doi == "10.5281/zenodo.14266867"
+    assert "gonzo" in datasets
+    assert isinstance(datasets["gonzo"], Dataset)
+    assert datasets["gonzo"].doi == "10.5281/zenodo.14266867"
 
 
 def test_add_arguments():

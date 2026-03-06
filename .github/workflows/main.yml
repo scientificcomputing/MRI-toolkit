@@ -12,7 +12,8 @@ jobs:
   build:
     needs: prepare-data
     env:
-      MRITK_TEST_DATA_FOLDER: ./test_data
+      MRITK_TEST_DATA_FOLDER_ROOT: ./test_data
+      MRITK_TEST_DATA_FOLDER: ./test_data/mritk-test-data
 
     name: Test on ${{ matrix.os }} with Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
@@ -31,7 +32,12 @@ jobs:
       uses: actions/download-artifact@v8
       with:
         name: shared-test-data
-        path: ${{ env.MRITK_TEST_DATA_FOLDER }} # Where you want the data to appear in this runner
+        path: ${{ env.MRITK_TEST_DATA_FOLDER_ROOT }} # Where you want the data to appear in this runner
+
+    - name: List downloaded files
+      run: |
+        echo "Files in ${{ env.MRITK_TEST_DATA_FOLDER_ROOT }}:"
+        ls -R ${{ env.MRITK_TEST_DATA_FOLDER_ROOT }}
 
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v6

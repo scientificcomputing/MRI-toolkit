@@ -90,7 +90,7 @@ We use **pytest** for testing. Before submitting a PR, ensure all tests pass loc
     Some tests require specific data. You can download this using the CLI included in the toolkit.
     ```bash
     # Downloads data to the 'test_data' folder (or your preferred location)
-    python -m mritk download-test-data test_data
+    python -m mritk datasets download test-data -o test_data
     ```
     *Note: You may need to set the `MRITK_TEST_DATA_FOLDER` environment variable if you download the data to a custom location.*
 
