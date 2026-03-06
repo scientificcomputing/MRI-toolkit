@@ -338,22 +338,27 @@ def compare_nifti_images(img_path1: Path, img_path2: Path, data_tolerance: float
     data1 = img1.get_fdata()
     data2 = img2.get_fdata()
 
+    return compare_nifti_arrays(data1, data2, data_tolerance)
+
+
+def compare_nifti_arrays(arr1: np.ndarray, arr2: np.ndarray, data_tolerance: float = 0.0) -> bool:
+    """
+    Compares two NIfTI data arrays for equality, accounting for NaNs and tolerance.
+
+    Args:
+        arr1 (np.ndarray): The first data array to compare.
+        arr2 (np.ndarray): The second data array to compare.
+        data_tolerance (float, optional): Absolute tolerance for floating-point
+            comparisons. Use 0.0 for exact mathematical equality. Defaults to 0.0.
+
+    Returns:
+        bool: True if arrays are considered the same, False otherwise.
+    """
     # Convert NaN to zero (can have NaNs in concentration maps)
-    data1 = np.nan_to_num(data1, nan=0.0)
-    data2 = np.nan_to_num(data2, nan=0.0)
+    arr1 = np.nan_to_num(arr1, nan=0.0)
+    arr2 = np.nan_to_num(arr2, nan=0.0)
 
-    print("data 1= ", np.unique(data1))
-    print("data 1= ", np.unique(data2))
-
-    # Use np.allclose for data comparison with tolerance, which is often needed
-    # for floating-point data, or np.array_equal for exact comparison.
     if data_tolerance > 0:
-        data_equal = np.allclose(data1, data2, atol=data_tolerance)
+        return np.allclose(arr1, arr2, atol=data_tolerance)
     else:
-        data_equal = np.array_equal(data1, data2)
-
-    deviation = np.mean(np.abs(data1 - data2))
-    assert data_equal, f"Data mismatch (mean absolute deviation: {deviation:.4f})"
-
-    # Overall result
-    return data_equal
+        return np.array_equal(arr1, arr2)
