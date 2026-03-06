@@ -65,7 +65,7 @@ def looklocker_t1map(looklocker_input: Path, timestamps: Path, output: Path = No
 
 
 def looklocker_t1map_postprocessing(
-    T1map_mri: MRIData,
+    T1map: Path,
     T1_low: float,
     T1_high: float,
     radius: int = 10,
@@ -73,6 +73,8 @@ def looklocker_t1map_postprocessing(
     mask: Optional[np.ndarray] = None,
     output: Path = None,
 ) -> MRIData:
+
+    T1map_mri = load_mri_data(T1map, dtype=np.single)
     T1map = T1map_mri.data.copy()
     if mask is None:
         # Create mask for largest island.
@@ -80,8 +82,8 @@ def looklocker_t1map_postprocessing(
         regions = skimage.measure.regionprops(mask)
         regions.sort(key=lambda x: x.num_pixels, reverse=True)
         mask = mask == regions[0].label
-        skimage.morphology.remove_small_holes(mask, 10 ** (mask.ndim), connectivity=2, out=mask)
-        skimage.morphology.binary_dilation(mask, skimage.morphology.ball(radius), out=mask)
+        skimage.morphology.remove_small_holes(mask, max_size=10 ** (mask.ndim), connectivity=2, out=mask)
+        skimage.morphology.dilation(mask, skimage.morphology.ball(radius), out=mask)
         skimage.morphology.erosion(mask, skimage.morphology.ball(erode_dilate_factor * radius), out=mask)
 
     # Remove non-zero artifacts outside of the mask.
@@ -111,7 +113,12 @@ def looklocker_t1map_postprocessing(
 
 
 def mixed_t1map(
-    SE_nii_path: Path, IR_nii_path: Path, meta_path: Path, T1_low: float, T1_high: float, output: Path = None
+    SE_nii_path: Path,
+    IR_nii_path: Path,
+    meta_path: Path,
+    T1_low: float,
+    T1_high: float,
+    output: Path = None
 ) -> nibabel.nifti1.Nifti1Image:
     SE = load_mri_data(SE_nii_path, dtype=np.single)
     IR = load_mri_data(IR_nii_path, dtype=np.single)
@@ -130,13 +137,10 @@ def mixed_t1map(
     nii.set_sform(nii.affine, "scanner")
     nii.set_qform(nii.affine, "scanner")
 
-    # T1map_mri = MRIData(T1_volume, nii.affine)
     if output is not None:
         nibabel.nifti1.save(nii, output)
-        # save_mri_data(T1map_mri, output, dtype=np.single)
 
     return nii
-    # return T1map_mri
 
 
 def mixed_t1map_postprocessing(SE_nii_path: Path, T1_path: Path, output: Path = None) -> nibabel.nifti1.Nifti1Image:
