@@ -73,7 +73,6 @@ def looklocker_t1map_postprocessing(
     mask: Optional[np.ndarray] = None,
     output: Path = None,
 ) -> MRIData:
-
     T1map_mri = load_mri_data(T1map, dtype=np.single)
     T1map = T1map_mri.data.copy()
     if mask is None:
@@ -113,12 +112,7 @@ def looklocker_t1map_postprocessing(
 
 
 def mixed_t1map(
-    SE_nii_path: Path,
-    IR_nii_path: Path,
-    meta_path: Path,
-    T1_low: float,
-    T1_high: float,
-    output: Path = None
+    SE_nii_path: Path, IR_nii_path: Path, meta_path: Path, T1_low: float, T1_high: float, output: Path = None
 ) -> nibabel.nifti1.Nifti1Image:
     SE = load_mri_data(SE_nii_path, dtype=np.single)
     IR = load_mri_data(IR_nii_path, dtype=np.single)
