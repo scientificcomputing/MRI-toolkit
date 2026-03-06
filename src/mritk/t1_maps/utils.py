@@ -190,7 +190,7 @@ def compare_nifti_images(img_path1, img_path2, data_tolerance=0.0):
     data2 = img2.get_fdata()
 
     # Convert NaN to zero (can have NaNs in concentration maps)
-    data1 = np.nan_to_num(data1, nan=0.0) 
+    data1 = np.nan_to_num(data1, nan=0.0)
     data2 = np.nan_to_num(data2, nan=0.0)
 
     print("data 1= ", np.unique(data1))
