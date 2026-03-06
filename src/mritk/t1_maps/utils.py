@@ -104,6 +104,7 @@ def mri_facemask(vol: np.ndarray, smoothing_level=5):
 def voxel_fit_function(t, x1, x2, x3):
     return np.abs(x1 * (1.0 - (1 + x2**2) * np.exp(-(x3**2) * t)))
 
+
 @np.errstate(divide="raise", invalid="raise", over="raise")
 def curve_fit_wrapper(f, t, y, p0):
     """Raises error instead of catching numpy warnings, such that
@@ -163,6 +164,7 @@ def T1_lookup_table(TRse: float, TI: float, TE: float, ETL: int, T1_low: float, 
     fractionCurve = Sir / Sse
     return fractionCurve, T1_grid
 
+
 def compare_nifti_images(img_path1, img_path2, data_tolerance=0.0):
     """
     Compares two NIfTI images for equality of data, affine, and header.
@@ -186,7 +188,7 @@ def compare_nifti_images(img_path1, img_path2, data_tolerance=0.0):
     # 1. Compare Image Data
     data1 = img1.get_fdata()
     data2 = img2.get_fdata()
-    # Use np.allclose for data comparison with tolerance, which is often needed 
+    # Use np.allclose for data comparison with tolerance, which is often needed
     # for floating-point data, or np.array_equal for exact comparison.
     if data_tolerance > 0:
         data_equal = np.allclose(data1, data2, atol=data_tolerance)
