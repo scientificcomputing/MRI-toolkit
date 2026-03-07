@@ -1,12 +1,22 @@
-"""Tests for T1 Map utilities
+# Tests for T1 Map utilities
 
-Copyright (C) 2026   Jørgen Riseth (jnriseth@gmail.com)
-Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
-Copyright (C) 2026   Simula Research Laboratory
-"""
+# Copyright (C) 2026   Jørgen Riseth (jnriseth@gmail.com)
+# Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
+# Copyright (C) 2026   Simula Research Laboratory
+
+
+from unittest.mock import patch
+from pathlib import Path
 
 import numpy as np
-from mritk.t1_maps.utils import voxel_fit_function, nan_filter_gaussian, estimate_se_free_relaxation_time, T1_lookup_table
+
+from mritk.t1.utils import (
+    voxel_fit_function,
+    nan_filter_gaussian,
+    estimate_se_free_relaxation_time,
+    T1_lookup_table,
+    run_dcm2niix,
+)
 
 
 def test_voxel_fit_function():
@@ -82,3 +92,23 @@ def test_t1_lookup_table():
     # Check that fraction curve monotonically DECREASES for standard physics ranges
     # As T1 gets longer, the IR signal becomes more negative relative to the SE signal
     assert np.all(np.diff(fraction_curve) < 0)
+
+
+@patch("subprocess.run")
+def test_run_dcm2niix(mock_run):
+    """Test that the dcm2niix command constructor triggers properly."""
+    input_path = Path("/input/data.dcm")
+    output_dir = Path("/output/")
+
+    # Test valid execution
+    run_dcm2niix(input_path, output_dir, form="test_form", extra_args="-z y")
+
+    # Verify the constructed shell command
+    mock_run.assert_called_once()
+    args, _ = mock_run.call_args
+    cmd = args[0]
+
+    assert "dcm2niix" in cmd[0]
+    assert "test_form" in cmd
+    assert "-z" in cmd
+    assert "y" in cmd

@@ -4,16 +4,17 @@
 # Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 # Copyright (C) 2026   Simula Research Laboratory
 
+from pathlib import Path
+import subprocess
+import shutil
+import shlex
 import numpy as np
 import scipy
-from pathlib import Path
 import skimage
 import warnings
+import logging
 from scipy.optimize import OptimizeWarning
 import nibabel
-
-from ..data.orientation import data_reorientation, change_of_coordinates_map
-from ..data.base import MRIData
 
 
 VOLUME_LABELS = [
@@ -25,102 +26,7 @@ VOLUME_LABELS = [
     "T1map-scanner",
 ]
 
-
-def read_dicom_trigger_times(dicomfile: Path) -> np.ndarray:
-    """
-    Extracts unique nominal cardiac trigger delay times from DICOM functional groups.
-
-    Args:
-        dicomfile (str): The file path to the DICOM file.
-
-    Returns:
-        np.ndarray: A sorted array of unique trigger delay times (in milliseconds)
-        extracted from the CardiacSynchronizationSequence.
-    """
-    import pydicom
-
-    dcm = pydicom.dcmread(dicomfile)
-    all_frame_times = [
-        f.CardiacSynchronizationSequence[0].NominalCardiacTriggerDelayTime for f in dcm.PerFrameFunctionalGroupsSequence
-    ]
-    return np.unique(all_frame_times)
-
-
-def dicom_standard_affine(frame_fg) -> np.ndarray:
-    """
-    Generates the DICOM to LPS (Left-Posterior-Superior) affine transformation matrix.
-
-    This maps the voxel coordinate space of a DICOM frame to the physical LPS space
-    by utilizing the pixel spacing, slice spacing, and patient orientation cosines.
-
-    Args:
-        frame_fg: A DICOM frame functional group sequence object containing
-            PixelMeasuresSequence, PlaneOrientationSequence, and PlanePositionSequence.
-
-    Returns:
-        np.ndarray: A 4x4 affine transformation matrix mapping from DICOM voxel
-        indices to LPS physical coordinates.
-    """
-    # Get the original data shape
-    df = float(frame_fg.PixelMeasuresSequence[0].SpacingBetweenSlices)
-    dr, dc = (float(x) for x in frame_fg.PixelMeasuresSequence[0].PixelSpacing)
-    plane_orientation = frame_fg.PlaneOrientationSequence[0]
-    orientation = np.array(plane_orientation.ImageOrientationPatient)
-
-    # Find orientation of data array relative to LPS-coordinate system.
-    row_cosine = orientation[:3]
-    col_cosine = orientation[3:]
-    frame_cosine = np.cross(row_cosine, col_cosine)
-
-    # Create DICOM-definition affine map to LPS.
-    T_1 = np.array(frame_fg.PlanePositionSequence[0].ImagePositionPatient)
-
-    # Create DICOM-definition affine map to LPS.
-    M_dcm = np.zeros((4, 4))
-    M_dcm[:3, 0] = row_cosine * dc
-    M_dcm[:3, 1] = col_cosine * dr
-    M_dcm[:3, 2] = frame_cosine * df
-    M_dcm[:3, 3] = T_1
-    M_dcm[3, 3] = 1.0
-
-    # Reorder from "natural index order" to DICOM affine map definition order.
-    N_order = np.eye(4)[[2, 1, 0, 3]]
-    return M_dcm @ N_order
-
-
-def extract_single_volume(D: np.ndarray, frame_fg) -> MRIData:
-    """
-    Extracts, scales, and reorients a single DICOM volume into an MRIData object.
-
-    Applies the appropriate RescaleSlope and RescaleIntercept transformations
-    to the raw pixel array, and then reorients the resulting data volume from
-    the native DICOM LPS space to RAS (Right-Anterior-Superior) space.
-
-    Args:
-        D (np.ndarray): The raw 3D pixel array for the volume.
-        frame_fg: The corresponding DICOM frame functional group metadata.
-
-    Returns:
-        MRIData: A newly constructed MRIData object with scaled pixel values
-        and an affine matrix oriented to RAS space.
-    """
-    # Find scaling values (should potentially be inside scaling loop)
-    pixel_value_transform = frame_fg.PixelValueTransformationSequence[0]
-    slope = float(pixel_value_transform.RescaleSlope)
-    intercept = float(pixel_value_transform.RescaleIntercept)
-    private = frame_fg[0x2005, 0x140F][0]
-    scale_slope = private[0x2005, 0x100E].value
-
-    # Loop over and scale values.
-    volume = np.zeros_like(D, dtype=np.single)
-    for idx in range(D.shape[0]):
-        volume[idx] = (intercept + slope * D[idx]) / (scale_slope * slope)
-
-    A_dcm = dicom_standard_affine(frame_fg)
-    C = change_of_coordinates_map("LPS", "RAS")
-    mri = data_reorientation(MRIData(volume, C @ A_dcm))
-
-    return mri
+logger = logging.getLogger(__name__)
 
 
 def mri_facemask(vol: np.ndarray, smoothing_level: float = 5.0) -> np.ndarray:
@@ -362,3 +268,47 @@ def compare_nifti_arrays(arr1: np.ndarray, arr2: np.ndarray, data_tolerance: flo
         return np.allclose(arr1, arr2, atol=data_tolerance)
     else:
         return np.array_equal(arr1, arr2)
+
+
+def run_dcm2niix(input_path: Path, output_dir: Path, form: str, extra_args: str = "", check: bool = True):
+    """
+    Utility wrapper to execute the dcm2niix command-line tool securely.
+
+    Args:
+        input_path (Path): Path to the input DICOM file/folder.
+        output_dir (Path): Path to the target output directory.
+        form (str): Output filename format string.
+        extra_args (str, optional): Additional command line arguments. Defaults to "".
+        check (bool, optional): If True, raises an exception on failure. Defaults to True.
+
+    Raises:
+        RuntimeError: If the dcm2niix executable is not found in the system PATH.
+        subprocess.CalledProcessError: If the command fails and `check` is True.
+    """
+    # 1. Locate the executable securely
+    executable = shutil.which("dcm2niix")
+    if executable is None:
+        raise RuntimeError(
+            "The 'dcm2niix' executable was not found. Please ensure it is installed and available in your system PATH."
+        )
+
+    # 2. Build the arguments list safely
+    args = [executable, "-f", form]
+
+    # Safely parse the extra string arguments into a list
+    if extra_args:
+        args.extend(shlex.split(extra_args))
+
+    args.extend(["-o", str(output_dir), str(input_path)])
+
+    # Reconstruct the command string purely for logging purposes
+    cmd_str = shlex.join(args)
+    logger.debug(f"Executing: {cmd_str}")
+
+    try:
+        # 3. Execute without shell=True for better security and stability
+        subprocess.run(args, check=check, capture_output=True, text=True)
+    except subprocess.CalledProcessError as e:
+        logger.error(f"dcm2niix execution failed.\nCommand: {cmd_str}\nError: {e.stderr}")
+        if check:
+            raise

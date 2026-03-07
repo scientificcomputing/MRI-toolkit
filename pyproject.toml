@@ -25,7 +25,8 @@ dependencies = [
   "scipy",
   "scikit-image",
   "pydicom",
-  "dcm2niix"]
+  "dcm2niix",
+]
 
 [project.optional-dependencies]
 show = [
@@ -126,6 +127,34 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 [tool.ruff.lint.mccabe]
 # Unlike Flake8, default to a complexity level of 10.
 max-complexity = 10
+
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+
+[tool.ruff.lint.isort]
+known-first-party = ["mritk"]
+known-third-party = [
+    "tqdm",
+    "numpy",
+    "rich-argparse",
+    "nibabel",
+    "pandas",
+    "scipy",
+    "scikit-image",
+    "pydicom",
+    "dcm2niix",
+    "pytest",
+]
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
 
 
 [tool.bumpversion]
