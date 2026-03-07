@@ -4,9 +4,10 @@
 # Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 # Copyright (C) 2026   Simula Research Laboratory
 
+import re
 from pathlib import Path
 from typing import Optional
-import re
+
 import numpy as np
 import pandas as pd
 import tqdm.rich
@@ -18,115 +19,193 @@ from ..segmentation.lookup_table import read_lut
 from .utils import voxel_count_to_ml_scale, find_timestamp, prepend_info
 
 
-def generate_stats_dataframe(
-    seg_path: Path,
-    mri_path: Path,
-    timestamp_path: Optional[str | Path] = None,
-    timestamp_sequence: Optional[str | Path] = None,
-    seg_pattern: Optional[str | Path] = None,
-    mri_data_pattern: Optional[str | Path] = None,
-    lut_path: Optional[Path] = None,
-    info_dict: Optional[dict] = None,
-) -> pd.DataFrame:
-    # Load the data (mri and seg)
-    mri = load_mri_data(mri_path, dtype=np.single)
-    seg = load_mri_data(seg_path, dtype=np.int16)
-    assert_same_space(seg, mri)
-    # Load LUT
+def extract_metadata(
+    file_path: Path,
+    pattern: str | None = None,
+    info_dict: dict[str, str] | None = None,
+    required_keys: list[str] | None = None,
+) -> dict:
+    """
+    Extracts metadata from a filename using a regex pattern, falling back to a dictionary.
+
+    Args:
+        file_path (Path): The path to the file.
+        pattern (str, optional): Regex pattern with named capture groups.
+        info_dict (dict, optional): Fallback dictionary if pattern is not provided.
+        required_keys (list[str], optional): Keys to initialize with None if neither match.
+
+    Returns:
+        dict: A dictionary of the extracted metadata.
+
+    Raises:
+        RuntimeError: If a pattern is provided but the filename does not match.
+    """
+    if pattern is not None:
+        if (m := re.match(rf"{pattern}", file_path.name)) is not None:
+            return m.groupdict()
+        else:
+            raise RuntimeError(f"Filename {file_path.name} does not match the provided pattern.")
+
+    required_keys = required_keys or []
+    if info_dict is not None:
+        return {k: info_dict.get(k) for k in required_keys}
+
+    return {k: None for k in required_keys}
+
+
+def get_regions_dictionary(seg_data: np.ndarray, lut_path: Optional[Path] = None) -> dict[str, list[int]]:
+    """
+    Builds a dictionary mapping region descriptions to their corresponding segmentation labels.
+
+    Args:
+        seg_data (np.ndarray): The segmentation array.
+        lut_path (Path, optional): Path to the FreeSurfer Color Look-Up Table.
+
+    Returns:
+        dict[str, list[int]]: Mapping of region names to a list of label integers.
+    """
     lut = read_lut(lut_path)
-    # Get LUT info
-    seg_labels = np.unique(seg.data[seg.data != 0])
+    seg_labels = np.unique(seg_data[seg_data != 0])
+
     lut_regions = lut.loc[lut.label.isin(seg_labels), ["label", "description"]].to_dict("records")
+
     regions = {
         **{d["description"]: sorted([d["label"]]) for d in lut_regions},
         **default_segmentation_groups(),
     }
-    # Get SEG info
-    seg_info = {}
-    if seg_pattern is not None:
-        seg_pattern = rf"{seg_pattern}"
-        if (m := re.match(seg_pattern, Path(seg_path).name)) is not None:
-            seg_info = m.groupdict()
-        else:
-            raise RuntimeError(f"Segmentation filename {seg_path.name} does not match the provided pattern.")
-    elif info_dict is not None:
-        seg_info["segmentation"] = info_dict["segmentation"] if "segmentation" in info_dict else None
-        seg_info["subject"] = info_dict["subject"] if "subject" in info_dict else None
-    else:
-        seg_info = {"segmentation": None, "subject": None}
-    # Get MRI info
-    mri_info = {}
-    if mri_data_pattern is not None:
-        mri_data_pattern = rf"{mri_data_pattern}"
-        if (m := re.match(mri_data_pattern, Path(mri_path).name)) is not None:
-            mri_info = m.groupdict()
-        else:
-            raise RuntimeError(f"MRI data filename {mri_path.name} does not match the provided pattern.")
-    elif info_dict is not None:
-        mri_info["mri_data"] = info_dict["mri_data"] if "mri_data" in info_dict else None
-        mri_info["subject"] = info_dict["subject"] if "subject" in info_dict else None
-        mri_info["session"] = info_dict["session"] if "session" in info_dict else None
-    else:
-        mri_info = {"mri_data": None, "subject": None, "session": None}
-    # Get timestamp
-    if timestamp_path is not None:
-        try:
-            mri_info["timestamp"] = find_timestamp(
-                Path(str(timestamp_path)),
-                str(timestamp_sequence),
-                str(mri_info["subject"]),
-                str(mri_info["session"]),
-            )
-        except (ValueError, RuntimeError, KeyError):
-            mri_info["timestamp"] = None
-    else:
-        mri_info["timestamp"] = None
+    return regions
 
+
+def compute_region_statistics(
+    region_data: np.ndarray,
+    labels: list[int],
+    description: str,
+    volscale: float,
+    voxelcount: int,
+) -> dict:
+    """
+    Computes statistical metrics (mean, std, percentiles, etc.) for a specific masked region.
+
+    Args:
+        region_data (np.ndarray): The raw MRI data values mapped to this region (includes NaNs).
+        labels (list[int]): The segmentation label indices representing this region.
+        description (str): Human-readable name of the region.
+        volscale (float): Multiplier to convert voxel counts to milliliters.
+        voxelcount (int): Total number of voxels in the region.
+
+    Returns:
+        dict: A dictionary containing the computed statistics.
+    """
+    record = {
+        "label": ",".join([str(x) for x in labels]),
+        "description": description,
+        "voxelcount": voxelcount,
+        "volume_ml": volscale * voxelcount,
+    }
+
+    if voxelcount == 0:
+        return record
+
+    num_nan = int((~np.isfinite(region_data)).sum())
+    record["num_nan_values"] = num_nan
+
+    if num_nan == voxelcount:
+        return record
+
+    # Filter out NaNs for the mathematical stats
+    valid_data = region_data[np.isfinite(region_data)]
+
+    stats = {
+        "sum": float(np.sum(valid_data)),
+        "mean": float(np.mean(valid_data)),
+        "median": float(np.median(valid_data)),
+        "std": float(np.std(valid_data)),
+        "min": float(np.min(valid_data)),
+        **{f"PC{pc}": float(np.quantile(valid_data, pc / 100)) for pc in [1, 5, 25, 75, 90, 95, 99]},
+        "max": float(np.max(valid_data)),
+    }
+
+    return {**record, **stats}
+
+
+def generate_stats_dataframe(
+    seg_path: Path,
+    mri_path: Path,
+    timestamp_path: str | Path | None = None,
+    timestamp_sequence: str | Path | None = None,
+    seg_pattern: str | None = None,
+    mri_data_pattern: str | None = None,
+    lut_path: Path | None = None,
+    info_dict: dict | None = None,
+) -> pd.DataFrame:
+    """
+    Generates a Pandas DataFrame containing descriptive statistics of MRI data grouped by segmentation regions.
+
+    Args:
+        seg_path (Path): Path to the segmentation NIfTI file.
+        mri_path (Path): Path to the underlying MRI data NIfTI file.
+        timestamp_path (str | Path, optional): Path to the timetable TSV file.
+        timestamp_sequence (str | Path, optional): Sequence label to query in the timetable.
+        seg_pattern (str, optional): Regex to extract metadata from the seg_path filename.
+        mri_data_pattern (str, optional): Regex to extract metadata from the mri_path filename.
+        lut_path (Path, optional): Path to the look-up table.
+        info_dict (dict, optional): Fallback dictionary for metadata.
+
+    Returns:
+        pd.DataFrame: A formatted DataFrame with statistics for all identified regions.
+    """
+    # Load and validate the data
+    mri = load_mri_data(mri_path, dtype=np.single)
+    seg = load_mri_data(seg_path, dtype=np.int16)
+    assert_same_space(seg, mri)
+
+    # Resolve metadata
+    seg_info = extract_metadata(seg_path, seg_pattern, info_dict, ["segmentation", "subject"])
+    mri_info = extract_metadata(mri_path, mri_data_pattern, info_dict, ["mri_data", "subject", "session"])
     info = seg_info | mri_info
 
-    records = []
-    finite_mask = np.isfinite(mri.data)
-    volscale = voxel_count_to_ml_scale(seg.affine)
+    # Resolve timestamps
+    info["timestamp"] = None
+    if timestamp_path is not None:
+        try:
+            info["timestamp"] = find_timestamp(
+                Path(str(timestamp_path)),
+                str(timestamp_sequence),
+                str(info.get("subject")),
+                str(info.get("session")),
+            )
+        except (ValueError, RuntimeError, KeyError):
+            pass
 
+    regions = get_regions_dictionary(seg.data, lut_path)
+    volscale = voxel_count_to_ml_scale(seg.affine)
+    records = []
+
+    # Iterate over regions and compute stats
     for description, labels in tqdm.rich.tqdm(regions.items(), total=len(regions)):
         region_mask = np.isin(seg.data, labels)
         voxelcount = region_mask.sum()
-        record = {
-            "label": ",".join([str(x) for x in labels]),
-            "description": description,
-            "voxelcount": voxelcount,
-            "volume_ml": volscale * voxelcount,
-        }
-        if voxelcount == 0:
-            records.append(record)
-            continue
 
-        data_mask = region_mask * finite_mask
-        region_data = mri.data[data_mask]
-        num_nan = (~np.isfinite(region_data)).sum()
-        record["num_nan_values"] = num_nan
-        if num_nan == voxelcount:
-            records.append(record)
-            continue
+        # Extract raw data for this region (including NaNs)
+        region_data = mri.data[region_mask]
 
-        stats = {
-            "sum": np.sum(region_data),
-            "mean": np.mean(region_data),
-            "median": np.median(region_data),
-            "std": np.std(region_data),
-            "min": np.min(region_data),
-            **{f"PC{pc}": np.quantile(region_data, pc / 100) for pc in [1, 5, 25, 75, 90, 95, 99]},
-            "max": np.max(region_data),
-        }
-        records.append({**record, **stats})
+        record = compute_region_statistics(
+            region_data=region_data,
+            labels=labels,
+            description=description,
+            volscale=volscale,
+            voxelcount=voxelcount,
+        )
+        records.append(record)
 
+    # Format output
     dframe = pd.DataFrame.from_records(records)
     dframe = prepend_info(
         dframe,
-        segmentation=info["segmentation"],
-        mri_data=info["mri_data"],
-        subject=info["subject"],
-        session=info["session"],
-        timestamp=info["timestamp"],
+        segmentation=info.get("segmentation"),
+        mri_data=info.get("mri_data"),
+        subject=info.get("subject"),
+        session=info.get("session"),
+        timestamp=info.get("timestamp"),
     )
     return dframe

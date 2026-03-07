@@ -5,7 +5,7 @@
 
 from importlib.metadata import metadata
 
-from . import data, segmentation, statistics
+from . import data, segmentation, statistics, t1, concentration
 
 
 meta = metadata("mritk")
@@ -20,4 +20,6 @@ __all__ = [
     "data",
     "segmentation",
     "statistics",
+    "t1",
+    "concentration",
 ]

@@ -94,3 +94,30 @@ segmentation
 .. automodule:: mritk.segmentation.lookup_table
     :members:
     :inherited-members:
+
+t1
+--
+
+.. automodule:: mritk.t1
+    :members:
+    :inherited-members:
+
+.. automodule:: mritk.t1.concentration
+    :members:
+    :inherited-members:
+
+.. automodule:: mritk.t1.mixed
+    :members:
+    :inherited-members:
+
+.. automodule:: mritk.t1.looklocker
+    :members:
+    :inherited-members:
+
+.. automodule:: mritk.t1.utils
+    :members:
+    :inherited-members:
+
+.. automodule:: mritk.t1.hybrid
+    :members:
+    :inherited-members:
