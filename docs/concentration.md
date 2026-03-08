@@ -55,6 +55,23 @@ Calculates concentration directly from $T_1$ maps (in milliseconds). The command
 mritk concentration t1 -i path/to/post_t1.nii.gz -r path/to/pre_t1.nii.gz -o path/to/concentration.nii.gz --r1 0.0045 --mask path/to/intracranial_mask.nii.gz
 ```
 
+Gonzo:
+
+```shell
+mritk concentration t1 \
+    -i gonzo/mri-processed/mri_processed_data/sub-01/T1maps/sub-01_ses-02_T1map_hybrid.nii.gz \
+    -r gonzo/mri-processed/mri_processed_data/sub-01/T1maps/sub-01_ses-01_T1map_hybrid.nii.gz \
+    -o sub-01_ses-02_concentration.nii.gz \
+    --r1 0.0032 \
+    --mask gonzo/mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-intracranial_binary.nii.gz
+```
+
+mritk concentration t1 \
+    -i new-test-data/mri-processed/mri_processed_data/sub-01/T1maps/sub-01_ses-02_T1map_hybrid.nii.gz \
+    -r new-test-data/mri-processed/mri_processed_data/sub-01/T1maps/sub-01_ses-01_T1map_hybrid.nii.gz \
+    -o sub-01_ses-02_concentration.nii.gz \
+    --r1 0.0032 \
+    --mask new-test-data/mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-intracranial_binary.nii.gz
 
 ### 2. From $R_1$ Maps (r1)
 

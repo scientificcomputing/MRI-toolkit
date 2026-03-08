@@ -1,3 +1,5 @@
+"""MRI-toolkit provides a set of features dedicated to MRI data post-processing and analysis."""
+
 import logging
 from importlib.metadata import metadata
 from pathlib import Path
@@ -5,6 +7,7 @@ import argparse
 from typing import Sequence, Optional
 
 from rich_argparse import RichHelpFormatter
+from rich.logging import RichHandler
 
 from . import datasets, info, statistics, show, napari, looklocker, hybrid, mixed, r1, concentration
 
@@ -41,15 +44,21 @@ def version_info():
     console.print(table)
 
 
+def add_extra_arguments(parser: argparse.ArgumentParser):
+    parser.add_argument("--no-rich", action="store_true", help="Disable rich logging and use standard console output.")
+    parser.add_argument("--logfile", type=Path, help="Path to a log file to save logs (optional).")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose logging")
+
+
 def setup_parser():
-    parser = argparse.ArgumentParser(formatter_class=RichHelpFormatter)
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=RichHelpFormatter)
     parser.add_argument("--version", action="store_true")
 
     subparsers = parser.add_subparsers(dest="command")
 
     # Download test data parser
     datasets_parser = subparsers.add_parser("datasets", help="Download datasets", formatter_class=parser.formatter_class)
-    datasets.add_arguments(datasets_parser)
+    datasets.add_arguments(datasets_parser, extra_args_cb=add_extra_arguments)
 
     info_parser = subparsers.add_parser("info", help="Display information about a file", formatter_class=parser.formatter_class)
     info_parser.add_argument("file", type=Path, help="File to display information about")
@@ -88,7 +97,7 @@ def setup_parser():
     concentration_parser = subparsers.add_parser(
         "concentration", help="Compute concentration maps.", formatter_class=parser.formatter_class
     )
-    concentration.add_arguments(concentration_parser)
+    concentration.add_arguments(concentration_parser, extra_args_cb=add_extra_arguments)
 
     return parser
 
@@ -99,7 +108,20 @@ def dispatch(parser: argparse.ArgumentParser, argv: Optional[Sequence[str]] = No
     if args.pop("version"):
         version_info()
         return 0
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+    verbose = args.pop("verbose", False)
+    if verbose:
+        level = logging.DEBUG
+    else:
+        level = logging.INFO
+
+    no_rich = args.pop("no_rich", False)
+    handlers: list[logging.Handler] = [logging.StreamHandler()] if no_rich else [RichHandler()]
+
+    logfile = args.pop("logfile", None)
+    if logfile:
+        handlers.append(logging.FileHandler(logfile))
+
+    logging.basicConfig(level=level, format="%(asctime)s - %(levelname)s - %(message)s", handlers=handlers)
     command = args.pop("command")
     logger = logging.getLogger(__name__)
     try:

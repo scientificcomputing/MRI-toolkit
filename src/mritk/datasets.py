@@ -4,6 +4,8 @@
 # Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 # Copyright (C) 2026   Simula Research Laboratory
 
+from collections.abc import Callable
+import argparse
 import logging
 from dataclasses import dataclass
 import zipfile
@@ -195,7 +197,10 @@ def list_datasets():
     console.print(table)
 
 
-def add_arguments(parser):
+def add_arguments(
+    parser: argparse.ArgumentParser,
+    extra_args_cb: Callable[[argparse.ArgumentParser], None] | None = None,
+) -> None:
     subparsers = parser.add_subparsers(dest="datasets-command")
     download_parser = subparsers.add_parser("download", help="Download a dataset", formatter_class=parser.formatter_class)
     choices = list(get_datasets().keys())
@@ -216,6 +221,9 @@ def add_arguments(parser):
         choices=choices,
         help=f"Dataset to show information about (choices: {', '.join(choices)})",
     )
+    if extra_args_cb is not None:
+        extra_args_cb(download_parser)
+        extra_args_cb(info_parser)
 
 
 def dispatch(args):

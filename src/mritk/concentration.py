@@ -4,13 +4,17 @@
 # Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 # Copyright (C) 2026   Simula Research Laboratory
 
+import argparse
+from collections.abc import Callable
+from pathlib import Path
+import logging
 
 import numpy as np
-from pathlib import Path
 
 from .data import MRIData
-
 from .testing import assert_same_space
+
+logger = logging.getLogger(__name__)
 
 
 def concentration_from_T1_expr(t1: np.ndarray, t1_0: np.ndarray, r1: float) -> np.ndarray:
@@ -64,12 +68,15 @@ def compute_concentration_from_T1_array(
         np.ndarray: A 3D array of computed concentrations. Invalid voxels (unmasked or
         where T1 <= 1e-10) are set to NaN.
     """
+    logger.info("Computing concentration map from T1 arrays")
     # Create a validity mask: T1 values must be > 1e-10 to safely invert without overflow
     valid_mask = (t1_data > 1e-10) & (t10_data > 1e-10)
-
+    logger.debug(f"Initial valid voxel count based on T1 thresholds: {np.sum(valid_mask)}")
     if mask is not None:
+        logger.debug("Applying additional mask to concentration computation")
         valid_mask &= mask.astype(bool)
 
+    logger.debug(f"Final valid voxel count after applying mask: {np.sum(valid_mask)}")
     concentrations = np.full_like(t10_data, np.nan, dtype=np.single)
 
     # Compute concentration strictly on valid voxels
@@ -101,8 +108,19 @@ def concentration_from_T1(
     Returns:
         MRIData: An MRIData object containing the concentration array and the affine matrix.
     """
+    logger.info("Computing concentration map from T1 maps.")
+    logger.debug(f"Input T1 path: {input_path}")
+    logger.debug(f"Reference T1 path: {reference_path}")
+    logger.debug(f"Output path: {output_path}")
+    logger.debug(f"Relaxivity (r1): {r1}")
+    logger.debug(f"Mask path: {mask_path}")
     t1_mri = MRIData.from_file(input_path, dtype=np.single)
     t10_mri = MRIData.from_file(reference_path, dtype=np.single)
+
+    logger.debug(f"Input T1 shape: {t1_mri.data.shape}")
+    logger.debug(f"Reference T1 shape: {t10_mri.data.shape}")
+    logger.debug(f"Input T1 affine: {t1_mri.affine}")
+    logger.debug(f"Reference T1 affine: {t10_mri.affine}")
     assert_same_space(t1_mri, t10_mri)
 
     mask_data = None
@@ -116,7 +134,11 @@ def concentration_from_T1(
     mri_data = MRIData(data=concentrations_array, affine=t10_mri.affine)
 
     if output_path is not None:
+        logger.info(f"Saving concentration map to {output_path}")
         mri_data.save(output_path, dtype=np.single)
+
+    else:
+        logger.info("No output path provided, returning concentration map as MRIData object without saving.")
 
     return mri_data
 
@@ -199,7 +221,10 @@ def concentration_from_R1(
     return mri_data
 
 
-def add_arguments(parser):
+def add_arguments(
+    parser: argparse.ArgumentParser,
+    extra_args_cb: Callable[[argparse.ArgumentParser], None] | None = None,
+) -> None:
     subparsers = parser.add_subparsers(dest="concentration-command", required=True)
 
     t1_parser = subparsers.add_parser("t1", help="Compute concentration from T1 maps.", formatter_class=parser.formatter_class)
@@ -219,6 +244,10 @@ def add_arguments(parser):
     r1_parser.add_argument("-o", "--output", type=Path, help="Path to save the resulting concentration map (NIfTI).")
     r1_parser.add_argument("--r1", type=float, default=0.0045, help="Relaxivity of the contrast agent (default: 0.0045).")
     r1_parser.add_argument("--mask", type=Path, help="Path to a boolean mask NIfTI file to restrict computation (optional).")
+
+    if extra_args_cb is not None:
+        extra_args_cb(t1_parser)
+        extra_args_cb(r1_parser)
 
 
 def dispatch(args):
