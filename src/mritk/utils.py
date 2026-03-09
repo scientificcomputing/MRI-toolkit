@@ -226,8 +226,10 @@ def run_dcm2niix(input_path: Path, output_dir: Path, form: str, extra_args: str 
         RuntimeError: If the dcm2niix executable is not found in the system PATH.
         subprocess.CalledProcessError: If the command fails and `check` is True.
     """
+    logger.info(f"Running dcm2niix with input: {input_path}, output_dir: {output_dir}, form: {form}, extra_args: '{extra_args}'")
     # 1. Locate the executable securely
     executable = shutil.which("dcm2niix")
+    logger.debug(f"Located dcm2niix executable at: {executable}")
     if executable is None:
         raise RuntimeError(
             "The 'dcm2niix' executable was not found. Please ensure it is installed and available in your system PATH."
@@ -248,6 +250,7 @@ def run_dcm2niix(input_path: Path, output_dir: Path, form: str, extra_args: str 
 
     try:
         # 3. Execute without shell=True for better security and stability
+        logger.debug(f"Attempting to run dcm2niix with arguments: {args}")
         subprocess.run(args, check=check, capture_output=True, text=True)
     except subprocess.CalledProcessError as e:
         logger.error(f"dcm2niix execution failed.\nCommand: {cmd_str}\nError: {e.stderr}")

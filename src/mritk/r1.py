@@ -4,11 +4,15 @@
 # Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 # Copyright (C) 2026   Simula Research Laboratory
 
-
-import numpy as np
+import argparse
+import logging
+from collections.abc import Callable
 from pathlib import Path
+import numpy as np
 
 from .data import MRIData
+
+logger = logging.getLogger(__name__)
 
 
 def compute_r1_array(
@@ -29,6 +33,7 @@ def compute_r1_array(
     Returns:
         np.ndarray: An array of R1 relaxation rates. Invalid/out-of-bound voxels are set to NaN.
     """
+    logger.debug(f"Computing R1 array with scale={scale}, t1_low={t1_low}, t1_high={t1_high}")
     valid_t1 = (t1_low <= t1_data) & (t1_data <= t1_high)
     r1_data = np.nan * np.zeros_like(t1_data)
 
@@ -57,6 +62,7 @@ def convert_t1_to_r1(
         MRIData: A new MRIData object containing the R1 map array and the original affine matrix.
     """
     r1_data = compute_r1_array(T1map_mri.data, scale, t1_low, t1_high)
+    logger.debug(f"Converted T1 map to R1 map with shape {r1_data.shape}")
     return MRIData(data=r1_data, affine=T1map_mri.affine)
 
 
@@ -83,6 +89,7 @@ def t1_to_r1(
     Raises:
         ValueError: If input_mri is neither a Path nor an MRIData object.
     """
+    logger.info(f"Converting T1 map to R1 map with input: {input_mri}, output: {output}")
     if isinstance(input_mri, Path):
         mri_t1 = MRIData.from_file(input_mri, dtype=np.single)
     elif isinstance(input_mri, MRIData):
@@ -93,18 +100,26 @@ def t1_to_r1(
     mri_r1 = convert_t1_to_r1(mri_t1, scale, t1_low, t1_high)
 
     if output is not None:
+        logger.info(f"Saving R1 map to {output}")
         mri_r1.save(output, dtype=np.single)
+    else:
+        logger.info("No output path provided, returning R1 map as MRIData object")
 
     return mri_r1
 
 
-def add_arguments(parser):
+def add_arguments(
+    parser: argparse.ArgumentParser,
+    extra_args_cb: Callable[[argparse.ArgumentParser], None] | None = None,
+) -> None:
     """Add command-line arguments for the T1 to R1 conversion."""
     parser.add_argument("-i", "--input", type=Path, required=True, help="Path to the input T1 map (NIfTI).")
     parser.add_argument("-o", "--output", type=Path, help="Path to save the output R1 map (NIfTI).")
     parser.add_argument("--scale", type=float, default=1000.0, help="Scaling factor for R1 calculation.")
     parser.add_argument("--t1-low", type=float, default=1.0, help="Lower bound for valid T1 values.")
     parser.add_argument("--t1-high", type=float, default=float("inf"), help="Upper bound for valid T1 values.")
+    if extra_args_cb is not None:
+        extra_args_cb(parser)
 
 
 def dispatch(args: dict):

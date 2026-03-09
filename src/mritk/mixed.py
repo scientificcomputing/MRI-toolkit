@@ -4,10 +4,10 @@
 # Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 # Copyright (C) 2026   Simula Research Laboratory
 
-
+import argparse
+from collections.abc import Callable
 import json
 import logging
-from typing import Optional
 from pathlib import Path
 
 import numpy as np
@@ -39,6 +39,7 @@ def dicom_standard_affine(frame_fg) -> np.ndarray:
         np.ndarray: A 4x4 affine transformation matrix mapping from DICOM voxel
         indices to LPS physical coordinates.
     """
+    logger.debug("Generating DICOM standard affine matrix from frame functional group metadata.")
     # Get the original data shape
     df = float(frame_fg.PixelMeasuresSequence[0].SpacingBetweenSlices)
     dr, dc = (float(x) for x in frame_fg.PixelMeasuresSequence[0].PixelSpacing)
@@ -125,6 +126,7 @@ def mixed_t1map(
         nibabel.nifti1.Nifti1Image: The computed T1 map as a NIfTI image object,
         with the qform/sform properly set to scanner space.
     """
+    logger.info(f"Computing Mixed T1 map from SE image {SE_nii_path} and IR image {IR_nii_path} with metadata {meta_path}")
     se_mri = MRIData.from_file(SE_nii_path, dtype=np.single)
     ir_mri = MRIData.from_file(IR_nii_path, dtype=np.single)
     meta = json.loads(meta_path.read_text())
@@ -137,6 +139,9 @@ def mixed_t1map(
 
     if output is not None:
         nibabel.nifti1.save(nii, output)
+        logger.info(f"Saved Mixed T1 map to {output}")
+    else:
+        logger.info("No output path provided, returning T1 map as NIfTI image object")
 
     return nii
 
@@ -159,6 +164,7 @@ def mixed_t1map_postprocessing(SE_nii_path: Path, T1_path: Path, output: Path | 
         nibabel.nifti1.Nifti1Image: The masked T1 map, where all non-CSF voxels
         have been set to NaN.
     """
+    logger.info(f"Starting Mixed T1 map post-processing with SE image {SE_nii_path} and T1 map {T1_path}")
     t1map_nii = nibabel.nifti1.load(T1_path)
     se_mri = MRIData.from_file(SE_nii_path, dtype=np.single)
 
@@ -171,6 +177,9 @@ def mixed_t1map_postprocessing(SE_nii_path: Path, T1_path: Path, output: Path | 
 
     if output is not None:
         nibabel.nifti1.save(masked_t1map_nii, output)
+        logger.info(f"Saved masked T1 map to {output}")
+    else:
+        logger.info("No output path provided, returning masked T1 map as NIfTI image object")
 
     return masked_t1map_nii
 
@@ -189,13 +198,17 @@ def compute_mixed_t1_array(se_data: np.ndarray, ir_data: np.ndarray, meta: dict,
     Returns:
         np.ndarray: Computed T1 map as a 3D float32 array.
     """
+    logger.info("Computing Mixed T1 array from SE and IR data using lookup table interpolation.")
     nonzero_mask = se_data != 0
     f_data = np.nan * np.zeros_like(ir_data)
     f_data[nonzero_mask] = ir_data[nonzero_mask] / se_data[nonzero_mask]
 
     tr_se, ti, te, etl = meta["TR_SE"], meta["TI"], meta["TE"], meta["ETL"]
     f_curve, t1_grid = T1_lookup_table(tr_se, ti, te, etl, t1_low, t1_high)
-
+    logger.debug(
+        f"Generated T1 lookup table with TR_SE={tr_se}, TI={ti}, TE={te}, "
+        f"ETL={etl}, T1 range=({t1_low}, {t1_high}), table size={len(t1_grid)}"
+    )
     interpolator = scipy.interpolate.interp1d(f_curve, t1_grid, kind="nearest", bounds_error=False, fill_value=np.nan)
     return interpolator(f_data).astype(np.single)
 
@@ -210,6 +223,7 @@ def _extract_frame_metadata(frame_fg) -> dict:
     Returns:
         dict: A dictionary containing available MR timing parameters.
     """
+    logger.debug("Extracting MR timing parameters from DICOM frame functional group.")
     descrip = {
         "TR": float(frame_fg.MRTimingAndRelatedParametersSequence[0].RepetitionTime),
         "TE": float(frame_fg.MREchoSequence[0].EffectiveEchoTime),
@@ -236,21 +250,24 @@ def extract_mixed_dicom(dcmpath: Path, subvolumes: list[str]) -> list[dict]:
         list[dict]: A list containing dictionaries with a generated 'nifti' image
         and a 'descrip' metadata dictionary for each requested subvolume.
     """
+    logger.debug(f"Extracting subvolumes {subvolumes} from DICOM file {dcmpath}")
     import pydicom
 
     dcm = pydicom.dcmread(str(dcmpath))
     frames_total = int(dcm.NumberOfFrames)
-
+    logger.debug(f"Total frames in DICOM: {frames_total}")
     # [0x2001, 0x1018] is a private Philips tag representing 'Number of Slices MR'
     frames_per_volume = dcm[0x2001, 0x1018].value
     num_volumes = frames_total // frames_per_volume
     assert num_volumes * frames_per_volume == frames_total, "Subvolume dimensions do not evenly divide the total frames."
 
+    logger.debug(f"Frames per volume: {frames_per_volume}, Number of volumes: {num_volumes}")
     pixel_data = dcm.pixel_array.astype(np.single)
     frame_fg_sequence = dcm.PerFrameFunctionalGroupsSequence
 
     vols_out = []
     for volname in subvolumes:
+        logger.debug(f"Processing subvolume '{volname}'")
         vol_idx = VOLUME_LABELS.index(volname)
 
         # Find volume slices representing the current subvolume
@@ -258,7 +275,7 @@ def extract_mixed_dicom(dcmpath: Path, subvolumes: list[str]) -> list[dict]:
         subvol_idx_end = (vol_idx + 1) * frames_per_volume
         frame_fg = frame_fg_sequence[subvol_idx_start]
 
-        logger.info(
+        logger.debug(
             f"Converting volume {vol_idx + 1}/{len(VOLUME_LABELS)}: '{volname}' "
             f"between indices {subvol_idx_start}-{subvol_idx_end} out of {frames_total}."
         )
@@ -275,7 +292,7 @@ def extract_mixed_dicom(dcmpath: Path, subvolumes: list[str]) -> list[dict]:
     return vols_out
 
 
-def dicom_to_mixed(dcmpath: Path, outpath: Path, subvolumes: Optional[list[str]] = None):
+def dicom_to_mixed(dcmpath: Path, outpath: Path, subvolumes: list[str] | None = None):
     """
     Converts a Mixed sequence DICOM file into independent subvolume NIfTIs.
 
@@ -288,19 +305,25 @@ def dicom_to_mixed(dcmpath: Path, outpath: Path, subvolumes: Optional[list[str]]
         subvolumes (list[str], optional): specific subvolumes to extract.
             Defaults to all known VOLUME_LABELS.
     """
+    logger.info(f"Starting DICOM to Mixed conversion for {dcmpath} with output base {outpath}")
+
     subvolumes = subvolumes or VOLUME_LABELS
+    logger.debug(f"Subvolumes to extract: {subvolumes}")
     assert all([volname in VOLUME_LABELS for volname in subvolumes]), (
         f"Invalid subvolume name in {subvolumes}, must be one of {VOLUME_LABELS}"
     )
 
     outdir, form = outpath.parent, outpath.stem
+    logger.debug(f"Output directory: {outdir}, output form prefix: {form}")
     outdir.mkdir(exist_ok=True, parents=True)
 
     vols = extract_mixed_dicom(dcmpath, subvolumes)
+    logger.debug(f"Extracted {len(vols)} subvolumes from DICOM, preparing to save NIfTI files and metadata.")
     meta = {}
 
     for vol, volname in zip(vols, subvolumes):
         output = outpath.with_name(f"{outpath.stem}_{volname}.nii.gz")
+        logger.debug(f"Saving subvolume '{volname}' to {output}")
         nibabel.nifti1.save(vol["nifti"], output)
 
         descrip = vol["descrip"]
@@ -317,13 +340,19 @@ def dicom_to_mixed(dcmpath: Path, outpath: Path, subvolumes: Optional[list[str]]
             raise e
 
     # Write merged metadata sidecar
-    (outdir / f"{form}_meta.json").write_text(json.dumps(meta, indent=4))
+    json_meta_path = outdir / f"{form}_meta.json"
+    logger.debug(f"Writing metadata JSON sidecar to {json_meta_path} with contents: {meta}")
+    json_meta_path.write_text(json.dumps(meta, indent=4))
 
     # Attempt standard dcm2niix conversion (soft failure allowed for legacy behavior)
+    logger.debug("Attempting to run dcm2niix for standard conversion (soft failure allowed).")
     run_dcm2niix(dcmpath, outdir, form, extra_args="-w 0 --terse -b o", check=False)
 
 
-def add_arguments(parser):
+def add_arguments(
+    parser: argparse.ArgumentParser,
+    extra_args_cb: Callable[[argparse.ArgumentParser], None] | None = None,
+) -> None:
     subparser = parser.add_subparsers(dest="hybrid-command", required=True, title="hybrid subcommands")
 
     dmc_parser = subparser.add_parser(
@@ -369,6 +398,11 @@ def add_arguments(parser):
         "-t", "--t1", type=Path, required=True, help="Path to the previously generated Mixed T1 map NIfTI file."
     )
     post_parser.add_argument("-o", "--output", type=Path, required=True, help="Output path for the masked T1 map NIfTI file.")
+
+    if extra_args_cb is not None:
+        extra_args_cb(dmc_parser)
+        extra_args_cb(t1_parser)
+        extra_args_cb(post_parser)
 
 
 def dispatch(args):

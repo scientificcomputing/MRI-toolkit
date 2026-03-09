@@ -87,12 +87,12 @@ def setup_parser():
     mixed_parser = subparsers.add_parser(
         "mixed", help="Generate a Mixed T1 map from Look-Locker data.", formatter_class=parser.formatter_class
     )
-    mixed.add_arguments(mixed_parser)
+    mixed.add_arguments(mixed_parser, extra_args_cb=add_extra_arguments)
 
     t1_to_r1_parser = subparsers.add_parser(
         "t12r1", help="Convert a T1 map to an R1 map.", formatter_class=parser.formatter_class
     )
-    r1.add_arguments(t1_to_r1_parser)
+    r1.add_arguments(t1_to_r1_parser, extra_args_cb=add_extra_arguments)
 
     concentration_parser = subparsers.add_parser(
         "concentration", help="Compute concentration maps.", formatter_class=parser.formatter_class
