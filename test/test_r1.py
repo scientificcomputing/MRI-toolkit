@@ -74,7 +74,7 @@ def test_t1_to_r1_invalid_input():
 def test_dispatch_t1_to_r1_defaults(mock_t1_to_r1):
     """Test the T1 to R1 CLI command using default scaling and threshold values."""
 
-    mritk.cli.main(["t12r1", "-i", "input_t1.nii.gz", "-o", "output_r1.nii.gz"])
+    mritk.cli.main(["t1-to-r1", "-i", "input_t1.nii.gz", "-o", "output_r1.nii.gz"])
 
     # Verify the underlying function was called with parsed Paths and the correct defaults
     mock_t1_to_r1.assert_called_once_with(
@@ -92,7 +92,7 @@ def test_dispatch_t1_to_r1_explicit_args(mock_t1_to_r1):
 
     mritk.cli.main(
         [
-            "t12r1",
+            "t1-to-r1",
             "--input",
             "input_t1.nii.gz",
             "--output",
@@ -116,7 +116,7 @@ def test_dispatch_t1_to_r1_explicit_args(mock_t1_to_r1):
 def test_dispatch_t1_to_r1_no_output(mock_t1_to_r1):
     """Test the T1 to R1 CLI command when the optional output argument is omitted."""
 
-    mritk.cli.main(["t12r1", "-i", "input_t1.nii.gz"])
+    mritk.cli.main(["t1-to-r1", "-i", "input_t1.nii.gz"])
 
     # Verify that output defaults to None when not provided
     mock_t1_to_r1.assert_called_once_with(
