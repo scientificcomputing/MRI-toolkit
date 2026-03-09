@@ -63,7 +63,7 @@ def test_dispatch_hybrid_defaults(mock_hybrid_t1map):
     # We pass the arguments exactly as a user would type them in the terminal.
     # If "hybrid" is nested under another command (like "t1maps hybrid"), add that prefix to the list.
     mritk.cli.main(
-        ["hybrid", "-i", "ll_map.nii.gz", "-m", "mixed_map.nii.gz", "-c", "csf_mask.nii.gz", "-o", "output_hybrid.nii.gz"]
+        ["hybrid", "-l", "ll_map.nii.gz", "-m", "mixed_map.nii.gz", "-c", "csf_mask.nii.gz", "-o", "output_hybrid.nii.gz"]
     )
 
     # Verify the underlying function was called with parsed Paths and the correct default values
@@ -84,7 +84,7 @@ def test_dispatch_hybrid_explicit_args(mock_hybrid_t1map):
     mritk.cli.main(
         [
             "hybrid",
-            "--input-ll",
+            "--input-looklocker",
             "ll_map.nii.gz",
             "--input-mixed",
             "mixed_map.nii.gz",

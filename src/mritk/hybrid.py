@@ -75,7 +75,7 @@ def add_arguments(
     extra_args_cb: Callable[[argparse.ArgumentParser], None] | None = None,
 ) -> None:
     """Add command-line arguments for the hybrid T1 map generation."""
-    parser.add_argument("-i", "--input-ll", type=Path, required=True, help="Path to the Look-Locker T1 map (NIfTI).")
+    parser.add_argument("-l", "--input-looklocker", type=Path, required=True, help="Path to the Look-Locker T1 map (NIfTI).")
     parser.add_argument("-m", "--input-mixed", type=Path, required=True, help="Path to the Mixed T1 map (NIfTI).")
     parser.add_argument("-c", "--csf-mask", type=Path, required=True, help="Path to the CSF mask (NIfTI).")
     parser.add_argument("-t", "--threshold", type=float, default=4000.0, help="T1 threshold in ms for substitution.")
@@ -88,8 +88,9 @@ def add_arguments(
 
 def dispatch(args):
     """Dispatch function for the hybrid T1 map generation."""
+
     hybrid_t1map(
-        LL_path=args.pop("input_ll"),
+        LL_path=args.pop("input_looklocker"),
         mixed_path=args.pop("input_mixed"),
         csf_mask_path=args.pop("csf_mask"),
         threshold=args.pop("threshold"),
