@@ -70,6 +70,16 @@ Generates the $T_1$ map based on the signal ratio between the Inversion-Recovery
 mritk mixed t1 -s path/to/output_base_SE-modulus.nii.gz -i path/to/output_base_IR-corrected-real.nii.gz -m path/to/output_base_meta.json -o path/to/mixed_t1_raw.nii.gz
 ```
 
+Gonzo:
+
+```shell
+mritk mixed t1 \
+    -s gonzo/mri-dataset/mri_dataset/sub-01/ses-01/mixed/sub-01_ses-01_acq-mixed_SE-modulus.nii.gz \
+    -i gonzo/mri-dataset/mri_dataset/sub-01/ses-01/mixed/sub-01_ses-01_acq-mixed_IR-corrected-real.nii.gz \
+    -m gonzo/mri-dataset/mri_dataset/sub-01/ses-01/mixed/sub-01_ses-01_acq-mixed_meta.json \
+    -o sub-01_ses-01_acq-mixed_T1map_raw.nii.gz
+```
+
 ### 3. Post-Processing (postprocess)
 
 Masks out non-fluid areas from the Mixed $T_1$ map. It derives a mask dynamically from the original SE sequence using Li thresholding and erodes the mask to avoid partial-volume effects at tissue boundaries.
@@ -81,4 +91,15 @@ Masks out non-fluid areas from the Mixed $T_1$ map. It derives a mask dynamicall
 #### Example Command
 ```bash
 mritk mixed postprocess -s path/to/output_base_SE-modulus.nii.gz -t path/to/mixed_t1_raw.nii.gz -o path/to/mixed_t1_clean.nii.gz
+```
+
+Gonzo:
+
+(here we use the original SE modulus image as the source for mask generation, and the t1 map from the previous step as the input for post-processing)
+
+```shell
+mritk mixed postprocess \
+    -s gonzo/mri-dataset/mri_dataset/sub-01/ses-01/mixed/sub-01_ses-01_acq-mixed_SE-modulus.nii.gz \
+    -t sub-01_ses-01_acq-mixed_T1map_raw.nii.gz \
+    -o sub-01_ses-01_acq-mixed_T1map_clean.nii.gz
 ```

@@ -81,18 +81,23 @@ def create_largest_island_mask(data: np.ndarray, radius: int = 10, erode_dilate_
     """
     logger.info("Creating largest island mask with dilation radius %d and erosion factor %.2f.", radius, erode_dilate_factor)
     mask = skimage.measure.label(np.isfinite(data))
+    logger.debug("Region properties calculated for %d labeled regions.", mask.max())
     regions = skimage.measure.regionprops(mask)
     if not regions:
         return np.zeros_like(data, dtype=bool)
 
+    logger.debug("Sorting regions by size to identify the largest contiguous island.")
     regions.sort(key=lambda x: x.num_pixels, reverse=True)
     mask = mask == regions[0].label
     try:
+        logger.debug("Removing small holes with max_size %d.", 10 ** (mask.ndim))
         skimage.morphology.remove_small_holes(mask, max_size=10 ** (mask.ndim), connectivity=2, out=mask)
     except TypeError:
         # Older versions of skimage use area_threshold instead of max_size
         skimage.morphology.remove_small_holes(mask, area_threshold=10 ** (mask.ndim), connectivity=2, out=mask)
+    logger.debug("Applying morphological dilation with radius %d.", radius)
     skimage.morphology.dilation(mask, skimage.morphology.ball(radius), out=mask)
+    logger.debug("Applying morphological erosion with radius %d.", erode_dilate_factor * radius)
     skimage.morphology.erosion(mask, skimage.morphology.ball(erode_dilate_factor * radius), out=mask)
     logger.debug(f"Generated final mask with shape {mask.shape} and {mask.sum()} valid voxels.")
     return mask

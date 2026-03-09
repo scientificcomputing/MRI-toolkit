@@ -132,7 +132,9 @@ def mixed_t1map(
     meta = json.loads(meta_path.read_text())
 
     t1_volume = compute_mixed_t1_array(se_mri.data, ir_mri.data, meta, T1_low, T1_high)
-
+    logger.debug(
+        f"Computed T1 volume with shape {t1_volume.shape} and T1 range ({np.nanmin(t1_volume)}, {np.nanmax(t1_volume)}) ms."
+    )
     nii = nibabel.nifti1.Nifti1Image(t1_volume, ir_mri.affine)
     nii.set_sform(nii.affine, "scanner")
     nii.set_qform(nii.affine, "scanner")
@@ -168,9 +170,12 @@ def mixed_t1map_postprocessing(SE_nii_path: Path, T1_path: Path, output: Path | 
     t1map_nii = nibabel.nifti1.load(T1_path)
     se_mri = MRIData.from_file(SE_nii_path, dtype=np.single)
 
+    logger.debug("Creating CSF mask from SE image using Li thresholding and morphological erosion.")
     mask = create_csf_mask(se_mri.data, use_li=True)
+    logger.debug("Performing morphological erosion on the CSF mask to reduce partial volume effects.")
     mask = skimage.morphology.erosion(mask)
 
+    logger.debug(f"Generated CSF mask with shape {mask.shape} and {mask.sum()} valid voxels.")
     masked_t1map = t1map_nii.get_fdata(dtype=np.single)
     masked_t1map[~mask] = np.nan
     masked_t1map_nii = nibabel.nifti1.Nifti1Image(masked_t1map, t1map_nii.affine, t1map_nii.header)
@@ -210,6 +215,7 @@ def compute_mixed_t1_array(se_data: np.ndarray, ir_data: np.ndarray, meta: dict,
         f"ETL={etl}, T1 range=({t1_low}, {t1_high}), table size={len(t1_grid)}"
     )
     interpolator = scipy.interpolate.interp1d(f_curve, t1_grid, kind="nearest", bounds_error=False, fill_value=np.nan)
+    logger.debug("Created interpolation function for T1 estimation based on the lookup table.")
     return interpolator(f_data).astype(np.single)
 
 

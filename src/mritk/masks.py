@@ -4,7 +4,6 @@
 # Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 # Copyright (C) 2026   Simula Research Laboratory
 
-
 import numpy as np
 import skimage
 from pathlib import Path

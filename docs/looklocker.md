@@ -62,6 +62,15 @@ Fits the voxel-wise Levenberg-Marquardt optimization curve to estimate $T_1$ tim
 mritk looklocker t1 -i path/to/ll_output.nii.gz -t path/to/ll_output_trigger_times.txt -o path/to/t1_raw.nii.gz
 ```
 
+Gonzo:
+
+```shell
+mritk looklocker t1 \
+    -i gonzo/mri-dataset/mri_dataset/sub-01/ses-01/anat/sub-01_ses-01_acq-looklocker_IRT1.nii.gz \
+    -t gonzo/mri-dataset/mri_dataset/sub-01/ses-01/anat/sub-01_ses-01_acq-looklocker_IRT1_trigger_times.txt \
+    -o sub-01_ses-01_acq-looklocker_T1map_raw.nii.gz
+```
+
 ### 3. Post-Processing (postprocess)
 
 Raw $T_1$ maps often contain noisy fits or values outside physiological boundaries. The postprocess command applies a quality-control pipeline that:
@@ -80,4 +89,16 @@ Iteratively fills internal NaNs (holes) using a smart Gaussian filter.
 
 ```bash
 mritk looklocker postprocess -i path/to/t1_raw.nii.gz -o path/to/t1_clean.nii.gz --t1-low 100.0 --t1-high 5000.0
+```
+
+Gonzo:
+
+(here input is the raw T1 map from the previous step)
+
+```shell
+mritk looklocker postprocess \
+    -i sub-01_ses-01_acq-looklocker_T1map_raw.nii.gz \
+    -o sub-01_ses-01_acq-looklocker_T1map.nii.gz \
+    --t1-low 100.0 \
+    --t1-high 6000.0
 ```
