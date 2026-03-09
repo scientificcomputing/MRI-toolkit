@@ -91,7 +91,7 @@ def setup_parser():
     mixed.add_arguments(mixed_parser, extra_args_cb=add_extra_arguments)
 
     t1_to_r1_parser = subparsers.add_parser(
-        "t12r1", help="Convert a T1 map to an R1 map.", formatter_class=parser.formatter_class
+        "t1-to-r1", help="Convert a T1 map to an R1 map.", formatter_class=parser.formatter_class
     )
     r1.add_arguments(t1_to_r1_parser, extra_args_cb=add_extra_arguments)
 
