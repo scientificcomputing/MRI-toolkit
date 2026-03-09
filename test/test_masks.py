@@ -59,15 +59,25 @@ def test_create_csf_mask_li():
 
 def test_create_csf_mask_yen():
     """Test generating a CSF mask using Yen thresholding on histogram data."""
-    # Build a slightly noisier array to ensure quantile/histogram logic doesn't crash
-    vol = np.random.uniform(0, 10, (15, 15, 15))
-    # Inject primary bright island
-    vol[4:10, 4:10, 4:10] = 150.0
+    # Ensure reproducible random distributions across Python versions
+    np.random.seed(42)
+
+    # Base background noise
+    vol = np.random.uniform(1, 10, (15, 15, 15))
+
+    # Inject primary bright island (e.g. CSF)
+    # The uniform distribution guarantees different float values, meaning the
+    # top 0.1% filter will only remove the 3 absolute brightest voxels.
+    # The rest of the island will safely remain to populate the histogram.
+    vol[4:10, 4:10, 4:10] = np.random.uniform(100, 150, (6, 6, 6))
 
     mask = create_csf_mask(vol, connectivity=2, use_li=False)
 
-    assert mask[7, 7, 7] == np.True_
-    assert mask[0, 0, 0] == np.False_
+    # Check that the center of the island is identified
+    assert bool(mask[7, 7, 7]) is True
+    # Check that the extreme background corners are completely excluded
+    assert bool(mask[0, 0, 0]) is False
+    assert bool(mask[14, 14, 14]) is False
 
 
 def test_compute_intracranial_mask_array():
