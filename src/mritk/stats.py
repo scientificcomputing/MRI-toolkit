@@ -14,8 +14,7 @@ import pandas as pd
 import tqdm.rich
 
 from .data import MRIData
-from .segmentation.groups import default_segmentation_groups
-from .segmentation.lookup_table import read_lut
+from .segmentation import default_segmentation_groups, read_lut
 from .testing import assert_same_space
 
 
