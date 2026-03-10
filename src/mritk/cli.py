@@ -143,7 +143,7 @@ def dispatch(parser: argparse.ArgumentParser, argv: Optional[Sequence[str]] = No
             hybrid.dispatch(args)
         elif command == "mixed":
             mixed.dispatch(args)
-        elif command == "t12r1":
+        elif command == "t1-to-r1":
             r1.dispatch(args)
         elif command == "concentration":
             concentration.dispatch(args)

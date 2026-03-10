@@ -9,7 +9,7 @@ authors = [
     { name = "Henrik Finsberg", email = "henriknf@simula.no" },
     { name = "Cécile Daversin Catty", email = "cecile@simula.no" }
 ]
-version = "0.1.0"
+version = "0.2.0"
 requires-python = ">=3.10"
 description = "MRI processing toolkit."
 readme = "README.md"
@@ -166,7 +166,7 @@ tag = true
 sign_tags = false
 tag_name = "v{new_version}"
 tag_message = "Bump version: {current_version} → {new_version}"
-current_version = "0.1.0"
+current_version = "0.2.0"
 
 
 [[tool.bumpversion.files]]
