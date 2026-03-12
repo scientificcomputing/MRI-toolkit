@@ -9,13 +9,7 @@ from unittest.mock import patch
 import numpy as np
 
 import mritk.cli
-from mritk.concentration import (
-    compute_concentration_from_R1_array,
-    compute_concentration_from_T1_array,
-    concentration_from_R1_expr,
-    concentration_from_T1,
-    concentration_from_T1_expr,
-)
+import mritk.concentration
 from mritk.testing import compare_nifti_images
 
 
@@ -36,7 +30,7 @@ def test_intracranial_concentration(tmp_path, mri_data_dir: Path):
     test_outputs = [tmp_path / f"output_ses-0{i}_concentration.nii.gz" for i in sessions]
 
     for i, s in enumerate(sessions):
-        concentration_from_T1(
+        mritk.concentration.concentration_from_T1(
             input_path=images_path[i],
             reference_path=baseline_path,
             output_path=test_outputs[i],
@@ -52,7 +46,7 @@ def test_compute_concentration_array_no_mask():
     t10_data = np.array([2000.0, 2000.0])
     r1 = 0.005
 
-    result = compute_concentration_from_T1_array(t1_data, t10_data, r1, mask=None)
+    result = mritk.concentration.compute_concentration_from_T1_array(t1_data, t10_data, r1, mask=None)
 
     assert np.isclose(result[0], 0.1)
     assert np.isclose(result[1], 0.1)
@@ -69,7 +63,7 @@ def test_concentration_from_t1_expr():
     #       C = 200 * 0.0005 = 0.1
     expected = np.array([0.1])
 
-    result = concentration_from_T1_expr(t1, t1_0, r1)
+    result = mritk.concentration.concentration_from_T1_expr(t1, t1_0, r1)
     np.testing.assert_array_almost_equal(result, expected)
 
 
@@ -83,7 +77,7 @@ def test_concentration_from_r1_expr():
     #       C = 200 * 1.0 = 200.0
     expected = np.array([200.0])
 
-    result = concentration_from_R1_expr(r1_map, r1_0_map, r1)
+    result = mritk.concentration.concentration_from_R1_expr(r1_map, r1_0_map, r1)
     np.testing.assert_array_almost_equal(result, expected)
 
 
@@ -96,7 +90,7 @@ def test_compute_concentration_from_T1_array_masking():
     mask = np.array([True, True, True, False])
     r1 = 0.005
 
-    result = compute_concentration_from_T1_array(t1_data, t10_data, r1, mask=mask)
+    result = mritk.concentration.compute_concentration_from_T1_array(t1_data, t10_data, r1, mask=mask)
 
     # Expectations:
     # Voxel 0: Valid, should be 0.1
@@ -119,7 +113,7 @@ def test_compute_concentration_from_R1_array_masking():
     mask = np.array([True, True, True, False])
     r1 = 0.005
 
-    result = compute_concentration_from_R1_array(r1_data, r10_data, r1, mask=mask)
+    result = mritk.concentration.compute_concentration_from_R1_array(r1_data, r10_data, r1, mask=mask)
 
     # Expectations:
     # Voxel 0: Valid, should be 200.0
@@ -139,10 +133,52 @@ def test_compute_concentration_from_R1_array_no_mask():
     r10_data = np.array([1.0, 1.0])
     r1 = 0.005
 
-    result = compute_concentration_from_R1_array(r1_data, r10_data, r1, mask=None)
+    result = mritk.concentration.compute_concentration_from_R1_array(r1_data, r10_data, r1, mask=None)
 
     assert np.isclose(result[0], 200.0)
     assert np.isclose(result[1], 200.0)
+
+
+def test_r1_concentration_roundtrip():
+    """Test that Signal -> Concentration -> Signal roundtrips perfectly for R1."""
+    np.random.seed(42)
+
+    # Generate synthetic baseline R1 and post-contrast R1
+    # Post-contrast R1 is typically higher than baseline R1
+    shape = (10, 10, 10)
+    r1_0 = np.random.uniform(0.5, 1.5, size=shape)
+    r1_post = r1_0 + np.random.uniform(0.1, 2.0, size=shape)
+    r1_relaxivity = 0.0045
+
+    # 1. Forward: Calculate concentration
+    concentration = mritk.concentration.concentration_from_R1_expr(r1_post, r1_0, r1_relaxivity)
+
+    # 2. Inverse: Calculate R1 back from concentration
+    r1_recovered = mritk.concentration.R1_from_concentration_expr(concentration, r1_0, r1_relaxivity)
+
+    # 3. Assert they are effectively identical
+    np.testing.assert_allclose(r1_recovered, r1_post, rtol=1e-5, atol=1e-8, err_msg="R1 round-trip failed!")
+
+
+def test_t1_concentration_roundtrip():
+    """Test that Signal -> Concentration -> Signal roundtrips perfectly for T1."""
+    np.random.seed(42)
+
+    # Generate synthetic baseline T1 and post-contrast T1
+    # Post-contrast T1 is typically lower than baseline T1
+    shape = (10, 10, 10)
+    t1_0 = np.random.uniform(1000, 2000, size=shape)  # milliseconds, for instance
+    t1_post = t1_0 - np.random.uniform(100, 500, size=shape)
+    r1_relaxivity = 0.0045
+
+    # 1. Forward: Calculate concentration
+    concentration = mritk.concentration.concentration_from_T1_expr(t1_post, t1_0, r1_relaxivity)
+
+    # 2. Inverse: Calculate T1 back from concentration
+    t1_recovered = mritk.concentration.T1_from_concentration_expr(concentration, t1_0, r1_relaxivity)
+
+    # 3. Assert they are effectively identical
+    np.testing.assert_allclose(t1_recovered, t1_post, rtol=1e-5, atol=1e-8, err_msg="T1 round-trip failed!")
 
 
 @patch("mritk.concentration.concentration_from_T1")
