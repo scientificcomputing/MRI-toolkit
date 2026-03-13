@@ -51,3 +51,4 @@ class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
         rois = self.rois if rois is None else rois
 
         return super().get_roi_labels(rois % 10000)
+        # TODO: Add column to distinguish parenchyma, csf etc
