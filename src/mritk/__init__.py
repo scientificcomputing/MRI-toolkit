@@ -16,6 +16,7 @@ from . import (
     statistics,
     utils,
 )
+from .data import MRIData
 
 meta = metadata("mritk")
 __version__ = meta["Version"]
@@ -35,4 +36,5 @@ __all__ = [
     "hybrid",
     "r1",
     "statistics",
+    "MRIData",
 ]
