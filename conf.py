@@ -19,11 +19,15 @@ exclude_patterns = [
     "third_party/*",
     "jupyter_execute/",
     "**.jupyter_cache",
+    "venv/*",
+    "test-*htmlcov/*",
+    "new-test-data/*",
+    "mritk-test-data/*",
 ]
 extensions = [
     "sphinx_togglebutton",
     "sphinx_copybutton",
-    "myst_parser",
+    "myst_nb",
     "sphinx_comments",
     "sphinx_external_toc",
     "sphinx.ext.intersphinx",
@@ -35,6 +39,7 @@ extensions = [
     "sphinxcontrib.bibtex",
     "sphinx_codeautolink",
     "sphinx_multitoc_numbering",
+    "sphinxcontrib.mermaid",
 ]
 myst_enable_extensions = [
     "amsmath",

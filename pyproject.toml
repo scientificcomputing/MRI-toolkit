@@ -9,7 +9,7 @@ authors = [
     { name = "Henrik Finsberg", email = "henriknf@simula.no" },
     { name = "Cécile Daversin Catty", email = "cecile@simula.no" }
 ]
-version = "0.1.0"
+version = "0.2.0"
 requires-python = ">=3.10"
 description = "MRI processing toolkit."
 readme = "README.md"
@@ -25,7 +25,8 @@ dependencies = [
   "scipy",
   "scikit-image",
   "pydicom",
-  "dcm2niix"]
+  "dcm2niix",
+]
 
 [project.optional-dependencies]
 show = [
@@ -56,8 +57,9 @@ docs = [
     "linkify-it-py",
     "sphinx-design",
     "sphinx-book-theme",
-    "myst-parser",
+    "myst-nb",
     "sphinx-multitoc-numbering",
+    "sphinxcontrib-mermaid",
 ]
 all = ["mritk[extra,test,pypi,show,napari]"]
 
@@ -112,11 +114,11 @@ target-version = "py312"
 
 [tool.ruff.lint]
 # Enable pycodestyle (`E`) and Pyflakes (`F`) codes by default.
-select = ["E", "F"]
+select = ["E", "F", "I"]
 ignore = ["E402", "E741", "E743", "E731"]
 
 # Allow autofix for all enabled rules (when `--fix`) is provided.
-fixable = ["A", "B", "C", "D", "E", "F"]
+fixable = ["A", "B", "C", "D", "E", "F", "I"]
 unfixable = []
 
 # Allow unused variables when underscore-prefixed.
@@ -128,6 +130,34 @@ dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 max-complexity = 10
 
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+
+[tool.ruff.lint.isort]
+known-first-party = ["mritk"]
+known-third-party = [
+    "tqdm",
+    "numpy",
+    "rich-argparse",
+    "nibabel",
+    "pandas",
+    "scipy",
+    "scikit-image",
+    "pydicom",
+    "dcm2niix",
+    "pytest",
+]
+section-order = [
+    "future",
+    "standard-library",
+    "third-party",
+    "first-party",
+    "local-folder",
+]
+
+
+
 [tool.bumpversion]
 allow_dirty = false
 commit = true
@@ -136,7 +166,7 @@ tag = true
 sign_tags = false
 tag_name = "v{new_version}"
 tag_message = "Bump version: {current_version} → {new_version}"
-current_version = "0.1.0"
+current_version = "0.2.0"
 
 
 [[tool.bumpversion.files]]

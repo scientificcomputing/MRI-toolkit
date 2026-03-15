@@ -1,11 +1,12 @@
 import argparse
 import typing
 from pathlib import Path
+
 import pandas as pd
 
-from .compute_stats import generate_stats_dataframe
-from ..data.base import MRIData
-from ..segmentation.segmentation import Segmentation
+from ..data import MRIData
+from ..segmentation import Segmentation
+from .compute_stats import generate_stats_dataframe_rois
 from .metadata import extract_metadata_from_bids
 
 
@@ -18,8 +19,9 @@ def compute_mri_stats(
     use_bids_metadata: bool = False,
     **kwargs,
 ):
-    import sys
     import json
+    import sys
+
     from rich.console import Console
     from rich.panel import Panel
 
@@ -64,7 +66,7 @@ def compute_mri_stats(
         try:
             # Call the logic function
             # TODO: Add option to specify statistics to compute
-            df = generate_stats_dataframe(
+            df = generate_stats_dataframe_rois(
                 seg=seg,
                 mri=mri_object,
                 metadata=info_dict,
@@ -93,6 +95,7 @@ def get_stats_value(stats_file: Path, ROI: int, statistic: str, **kwargs):
     Replaces the @click.command('get') decorated function.
     """
     import sys
+
     from rich.console import Console
 
     # Setup Rich

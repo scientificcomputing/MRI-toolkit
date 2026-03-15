@@ -1,3 +1,15 @@
+---
+jupytext:
+  formats: md:myst
+  text_representation:
+    extension: .md
+    format_name: myst
+kernelspec:
+  display_name: Python 3
+  language: python
+  name: python3
+---
+
  # Show Command
 
  The `show` command provides a quick way to visualize MRI data directly in your terminal.
@@ -15,18 +27,16 @@
 
  ## Usage
 
- ```bash
- mritk show <file> [OPTIONS]
+ ```{code-cell} shell
+ !mritk show --help
  ```
 
- **Arguments:**
- * `file`: Path to the MRI file to show.
+ ### Example Command
 
- **Options:**
- * `--cmap <str>`: Colormap to use (default: `gray`).
- * `--slice-x <float>`: Relative position (0-1) of the sagittal slice (default: `0.5`).
- * `--slice-y <float>`: Relative position (0-1) of the coronal slice (default: `0.5`).
- * `--slice-z <float>`: Relative position (0-1) of the axial slice (default: `0.5`).
+ ```bash
+ mritk show path/to/image.nii.gz
+ ```
+
  %% [markdown]
  ## Example
 

@@ -1,12 +1,13 @@
 import json
 import typing
 from pathlib import Path
-import numpy as np
+
 import nibabel as nib
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
+import numpy as np
 from rich import box
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
 
 
 def custom_json(obj):

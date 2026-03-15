@@ -4,12 +4,15 @@
 # Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 # Copyright (C) 2026   Simula Research Laboratory
 
+import argparse
 import logging
-from dataclasses import dataclass
-import zipfile
-from pathlib import Path
 import urllib.request
+import zipfile
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
+from pathlib import Path
+
 import tqdm
 
 logger = logging.getLogger(__name__)
@@ -35,7 +38,7 @@ def get_datasets() -> dict[str, Dataset]:
             name="Test Data",
             description="A small test dataset for testing functionality (based on the Gonzo dataset).",
             license="CC-BY-4.0",
-            links={"mritk-test-data.zip": download_link_google_drive("1CSj3CHd4ztcU4Aqdlw9K2OWjPi5u75bd")},
+            links={"mritk-test-data.zip": download_link_google_drive("1YVXoV1UhmpkMIeaNKeS9eqCsdMULwKBO")},
         ),
         "gonzo": Dataset(
             name="The Gonzo Dataset",
@@ -122,11 +125,11 @@ class ProgressBar:
 
 
 def list_datasets_verbose(key: str):
-    from rich.console import Console
-    from rich.table import Table
-    from rich.panel import Panel
-    from rich.text import Text
     from rich import box
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.table import Table
+    from rich.text import Text
 
     console = Console()
     datasets = get_datasets()
@@ -177,9 +180,9 @@ def list_datasets_verbose(key: str):
 def list_datasets():
     """Prints a simple table with only Key, Name and DOI."""
 
+    from rich import box
     from rich.console import Console
     from rich.table import Table
-    from rich import box
 
     console = Console()
     datasets = get_datasets()
@@ -195,7 +198,10 @@ def list_datasets():
     console.print(table)
 
 
-def add_arguments(parser):
+def add_arguments(
+    parser: argparse.ArgumentParser,
+    extra_args_cb: Callable[[argparse.ArgumentParser], None] | None = None,
+) -> None:
     subparsers = parser.add_subparsers(dest="datasets-command")
     download_parser = subparsers.add_parser("download", help="Download a dataset", formatter_class=parser.formatter_class)
     choices = list(get_datasets().keys())
@@ -216,6 +222,9 @@ def add_arguments(parser):
         choices=choices,
         help=f"Dataset to show information about (choices: {', '.join(choices)})",
     )
+    if extra_args_cb is not None:
+        extra_args_cb(download_parser)
+        extra_args_cb(info_parser)
 
 
 def dispatch(args):

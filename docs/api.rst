@@ -39,23 +39,47 @@ show
     :members:
     :inherited-members:
 
+concentration
+-------------
+
+.. automodule:: mritk.concentration
+    :members:
+    :inherited-members:
+
+mixed
+-----
+
+.. automodule:: mritk.mixed
+    :members:
+    :inherited-members:
+
+looklocker
+----------
+
+.. automodule:: mritk.looklocker
+    :members:
+    :inherited-members:
+
+utils
+-----
+
+.. automodule:: mritk.utils
+    :members:
+    :inherited-members:
+
+hybrid
+------
+
+.. automodule:: mritk.hybrid
+    :members:
+    :inherited-members:
+
+
 
 statistics
 ----------
 
-.. automodule:: mritk.statistics
-    :members:
-    :inherited-members:
-
-.. automodule:: mritk.statistics.utils
-    :members:
-    :inherited-members:
-
-.. automodule:: mritk.statistics.compute_stats
-    :members:
-    :inherited-members:
-
-.. automodule:: mritk.statistics.cli
+.. automodule:: mritk.stats
     :members:
     :inherited-members:
 
@@ -66,19 +90,6 @@ data
 .. automodule:: mritk.data
     :members:
     :inherited-members:
-
-.. automodule:: mritk.data.io
-    :members:
-    :inherited-members:
-
-.. automodule:: mritk.data.orientation
-    :members:
-    :inherited-members:
-
-.. automodule:: mritk.data.base
-    :members:
-    :inherited-members:
-
 
 segmentation
 ------------

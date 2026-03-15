@@ -1,6 +1,23 @@
+---
+jupytext:
+  formats: md:myst
+  text_representation:
+    extension: .md
+    format_name: myst
+kernelspec:
+  display_name: Python 3
+  language: python
+  name: python3
+---
+
 # Datasets
 
 The `datasets` subcommand provides tools for listing and downloading example datasets.
+
+
+```{code-cell} shell
+!mritk datasets --help
+```
 
 To list available datasets, use:
 

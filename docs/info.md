@@ -1,18 +1,30 @@
+---
+jupytext:
+  formats: md:myst
+  text_representation:
+    extension: .md
+    format_name: myst
+kernelspec:
+  display_name: Python 3
+  language: python
+  name: python3
+---
+
 # Info command
 
 The `info` command allows you to quickly inspect the metadata of an MRI file. It displays the image shape, voxel size, data type, and the affine transformation matrix.
 
 ## Usage
 
-```bash
-mritk info <file_path> [OPTIONS]
+```{code-cell} shell
+!mritk info --help
 ```
 
-**Arguments:**
-* `file`: Path to the file to display information about.
+### Example Command
 
-**Options:**
-* `--json`: Output information in JSON format. Useful for programmatic parsing.
+```bash
+mritk info path/to/image.nii.gz
+```
 
 
 ![info](https://github.com/user-attachments/assets/fc0e734d-3c94-48fa-8e25-3e65bfc86ebe)

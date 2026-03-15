@@ -4,8 +4,7 @@ from pathlib import Path
 import numpy as np
 from rich.console import Console
 
-# Assuming relative imports based on your previous file structure
-from .data.io import load_mri_data
+from .data import MRIData
 
 
 def add_arguments(parser: argparse.ArgumentParser):
@@ -51,7 +50,7 @@ def dispatch(args):
         console = Console()
         console.print(f"[bold green]Loading MRI data from:[/bold green] {file_path}")
 
-        mri_resource = load_mri_data(file_path)
+        mri_resource = MRIData.from_file(file_path)
         data = mri_resource.data
         viewer.add_image(data, name=file_path.stem)
 

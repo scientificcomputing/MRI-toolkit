@@ -1,3 +1,6 @@
+test/FreeSurferColorLUT.txt
+.DS_Store
+.jupyter_cache/
 # Created by https://www.toptal.com/developers/gitignore/api/python
 # Edit at https://www.toptal.com/developers/gitignore?templates=python
 

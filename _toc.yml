@@ -11,6 +11,11 @@ parts:
     - file: "docs/info.md" # About the mritk info command
     - file: "docs/show.md" # About the mritk show command
     - file: "docs/napari.md" # About the mritk napari command
+    - file: "docs/looklocker.md" # About the mritk looklocker command
+    - file: "docs/mixed.md" # About the mritk mixed command
+    - file: "docs/r1.md" # About the mritk r1 command
+    - file: "docs/hybrid.md" # About the mritk hybrid command
+    - file: "docs/concentration.md" # About the mritk concentration command
 
   - caption: Community
     chapters:
