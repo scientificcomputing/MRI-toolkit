@@ -13,7 +13,7 @@ from . import (
     mixed,
     r1,
     segmentation,
-    stats,
+    statistics,
     utils,
 )
 
@@ -34,5 +34,5 @@ __all__ = [
     "mixed",
     "hybrid",
     "r1",
-    "stats",
+    "statistics",
 ]

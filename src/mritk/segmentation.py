@@ -10,7 +10,11 @@ import re
 from pathlib import Path
 from urllib.request import urlretrieve
 
+import numpy as np
+import numpy.typing as npt
 import pandas as pd
+
+from .data import MRIData, load_mri_data
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +77,74 @@ SEGMENTATION_GROUPS = {
     "corpus-callosum": CORPUS_CALLOSUM,
     "subcortical-gm": SUBCORTICAL_GM_RANGES,
 }
+
+
+class Segmentation(MRIData):
+    def __init__(self, data: np.ndarray, affine: np.ndarray, lut: pd.DataFrame | None = None):
+        super().__init__(data, affine)
+        self.data = self.data.astype(int)
+        self.rois = np.unique(self.data[self.data > 0])
+        if lut is not None:
+            self.lut = lut
+        else:
+            self.lut = pd.DataFrame({"Label": self.rois}, index=self.rois)
+
+        self._label_name = "Label" if "Label" in self.lut.columns else self.lut.columns[0]
+
+    @property
+    def num_rois(self) -> int:
+        return len(self.rois)
+
+    @property
+    def roi_labels(self) -> np.ndarray:
+        return self.rois
+
+    def get_roi_labels(self, rois: npt.NDArray[np.int_] | None = None) -> pd.DataFrame:
+        if rois is None:
+            rois = self.rois
+
+        if not np.isin(rois, self.rois).all():
+            raise ValueError("Some of the provided ROIs are not present in the segmentation.")
+
+        return self.lut.loc[self.lut.index.isin(rois), [self._label_name]].rename_axis("ROI").reset_index()
+
+    @classmethod
+    def from_file(
+        cls, filepath: Path | str, dtype: npt.DTypeLike | None = None, orient: bool = True, lut_path: Path | None = None
+    ) -> "Segmentation":
+        resolved_lut_path = resolve_lut_path(lut_path)
+        lut = read_lut(resolved_lut_path)
+        data, affine = load_mri_data(filepath, dtype=dtype, orient=orient)
+        return cls(data=data, affine=affine, lut=lut)
+
+
+class FreeSurferSegmentation(Segmentation): ...
+
+
+class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
+    def get_roi_labels(self, rois: npt.NDArray[np.int_] | None = None) -> pd.DataFrame:
+        rois = self.rois if rois is None else rois
+
+        freesurfer_labels = super().get_roi_labels(rois % 10000).rename(columns={"ROI": "FreeSurfer_ROI"})
+
+        tissue_type = self.get_tissue_type(rois)
+        return freesurfer_labels.merge(
+            tissue_type,
+            left_on="FreeSurfer_ROI",
+            right_on="FreeSurfer_ROI",
+            how="outer",
+        ).drop(columns=["FreeSurfer_ROI"])[["ROI", self._label_name, "tissue_type"]]
+
+    def get_tissue_type(self, rois: npt.NDArray[np.int_] | None = None) -> pd.DataFrame:
+        rois = self.rois if rois is None else rois
+        tissue_types = pd.Series(
+            data=np.where(rois < 10000, "Parenchyma", np.where(rois < 20000, "CSF", "Dura")),
+            index=rois,
+            name="tissue_type",
+        )
+        ret = pd.DataFrame(tissue_types, columns=["tissue_type"]).rename_axis("ROI").reset_index()
+        ret["FreeSurfer_ROI"] = ret["ROI"] % 10000
+        return ret
 
 
 def default_segmentation_groups() -> dict[str, list[int]]:

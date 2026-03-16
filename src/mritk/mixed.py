@@ -96,9 +96,8 @@ def extract_single_volume(D: np.ndarray, frame_fg) -> MRIData:
 
     A_dcm = dicom_standard_affine(frame_fg)
     C = change_of_coordinates_map("LPS", "RAS")
-    mri = data_reorientation(MRIData(volume, C @ A_dcm))
-
-    return mri
+    data, affine = data_reorientation(volume, C @ A_dcm)
+    return MRIData(data=data, affine=affine)
 
 
 def mixed_t1map(
