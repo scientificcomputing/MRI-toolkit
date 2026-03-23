@@ -10,7 +10,11 @@ import re
 from pathlib import Path
 from urllib.request import urlretrieve
 
+import numpy as np
+import numpy.typing as npt
 import pandas as pd
+
+from .data import MRIData, load_mri_data
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +77,176 @@ SEGMENTATION_GROUPS = {
     "corpus-callosum": CORPUS_CALLOSUM,
     "subcortical-gm": SUBCORTICAL_GM_RANGES,
 }
+
+
+class Segmentation(MRIData):
+    """
+    Base class for MRI segmentations, linking spatial data with anatomical lookup tables.
+
+    This class extends MRIData by specifically treating the image array as discrete
+    integer labels representing Regions of Interest (ROIs). It links these numerical
+    labels to a descriptive Lookup Table (LUT).
+    """
+
+    def __init__(self, data: np.ndarray, affine: np.ndarray, lut: pd.DataFrame | None = None):
+        """
+        Initializes the Segmentation object.
+
+        Args:
+            data (np.ndarray): 3D numpy array containing integer ROI labels.
+            affine (np.ndarray): 4x4 affine transformation matrix mapping voxel indices to physical space.
+            lut (Optional[pd.DataFrame], optional): A pandas DataFrame mapping numerical labels
+                to their descriptions. If None, a default numerical mapping is generated. Defaults to None.
+        """
+        super().__init__(data, affine)
+        self.data = self.data.astype(int)
+
+        # Extract all unique active regions (ignoring 0/background)
+        self.rois = np.unique(self.data[self.data > 0])
+
+        if lut is not None:
+            self.lut = lut
+        else:
+            self.lut = pd.DataFrame({"Label": self.rois}, index=self.rois)
+
+        # Identify the primary label column dynamically
+        self._label_name = "Label" if "Label" in self.lut.columns else self.lut.columns[0]
+
+    @property
+    def num_rois(self) -> int:
+        """The number of unique active regions of interest present
+        in the segmentation volume.
+        """
+        return len(self.rois)
+
+    @property
+    def roi_labels(self) -> np.ndarray:
+        """An array containing the unique numerical labels of all present ROIs."""
+        return self.rois
+
+    def get_roi_labels(self, rois: npt.NDArray[np.int_] | None = None) -> pd.DataFrame:
+        """
+        Retrieves a descriptive mapping for a specified set of ROIs.
+
+        Args:
+            rois (Optional[npt.NDArray[np.int_]], optional): Array of numerical ROIs to look up.
+                If None, retrieves labels for all ROIs currently present in the volume. Defaults to None.
+
+        Returns:
+            pd.DataFrame: A DataFrame with columns ['ROI', <label_name>] mapping the numbers
+            to their string descriptions.
+
+        Raises:
+            ValueError: If any requested ROI is not present in the segmentation volume.
+        """
+        if rois is None:
+            rois = self.rois
+
+        if not np.isin(rois, self.rois).all():
+            raise ValueError("Some of the provided ROIs are not present in the segmentation.")
+
+        return self.lut.loc[self.lut.index.isin(rois), [self._label_name]].rename_axis("ROI").reset_index()
+
+
+class FreeSurferSegmentation(Segmentation):
+    """
+    Segmentation class specifically tailored for FreeSurfer outputs.
+
+    Automatically handles the loading of NIfTI files and the resolution of the
+    standard FreeSurfer Color Lookup Table.
+    """
+
+    @classmethod
+    def from_file(
+        cls, filepath: Path | str, dtype: npt.DTypeLike | None = None, orient: bool = True, lut_path: Path | None = None
+    ) -> "FreeSurferSegmentation":
+        """
+        Load a FreeSurfer segmentation from a NIfTI file, automatically resolving the LUT.
+
+        Args:
+            filepath (Path | str): Path to the NIfTI segmentation file.
+            dtype (Optional[npt.DTypeLike], optional): Requested data type. Defaults to None.
+            orient (bool, optional): Whether to reorient the data to standard space. Defaults to True.
+            lut_path (Optional[Path], optional): Path to a custom FreeSurfer Color LUT.
+                If None, standard fallback paths are checked. Defaults to None.
+
+        Returns:
+            FreeSurferSegmentation: The initialized segmentation object with the attached LUT.
+        """
+        resolved_lut_path = resolve_freesurfer_lut_path(lut_path)
+        lut = read_freesurfer_lut(resolved_lut_path)
+
+        # FreeSurfer LUTs index by the "label" column
+        lut = lut.set_index("label") if "label" in lut.columns else lut
+
+        data, affine = load_mri_data(filepath, dtype=dtype, orient=orient)
+        return cls(data=data, affine=affine, lut=lut)
+
+
+class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
+    """
+    Extended FreeSurfer segmentation handling custom tissue type classifications.
+
+    Supports segmentation conventions where regions are offset by multiples of 10000
+    to indicate broad tissue categories (e.g., Parenchyma, CSF, Dura) while preserving
+    the base FreeSurfer anatomical label (modulus 10000).
+    """
+
+    def get_roi_labels(self, rois: npt.NDArray[np.int_] | None = None) -> pd.DataFrame:
+        """
+        Retrieves descriptive mappings including the augmented tissue type classifications.
+
+        Args:
+            rois (Optional[npt.NDArray[np.int_]], optional): Array of numerical ROIs to look up.
+                If None, retrieves labels for all ROIs currently present. Defaults to None.
+
+        Returns:
+            pd.DataFrame: A DataFrame mapping the requested ROIs to their base descriptions
+            and their computed 'tissue_type'.
+        """
+        rois = self.rois if rois is None else rois
+
+        # Use modulus 10000 to extract the base anatomical label from the superclass LUT
+        freesurfer_labels = super().get_roi_labels(rois % 10000).rename(columns={"ROI": "FreeSurfer_ROI"})
+
+        # Get the broad tissue categories based on the numerical offsets
+        tissue_type = self.get_tissue_type(rois)
+
+        # Merge the base anatomical names with the tissue types
+        return freesurfer_labels.merge(
+            tissue_type,
+            left_on="FreeSurfer_ROI",
+            right_on="FreeSurfer_ROI",
+            how="outer",
+        ).drop(columns=["FreeSurfer_ROI"])[["ROI", self._label_name, "tissue_type"]]
+
+    def get_tissue_type(self, rois: npt.NDArray[np.int_] | None = None) -> pd.DataFrame:
+        """
+        Determines the tissue type based on the numerical ranges of the ROI labels.
+
+        Labels < 10000 are classified as "Parenchyma".
+        Labels < 20000 are classified as "CSF".
+        Labels >= 20000 are classified as "Dura".
+
+        Args:
+            rois (Optional[npt.NDArray[np.int_]], optional): Array of numerical ROIs to evaluate.
+                If None, evaluates all ROIs currently present. Defaults to None.
+
+        Returns:
+            pd.DataFrame: A DataFrame mapping original ROIs to 'FreeSurfer_ROI' (modulus 10000)
+            and their 'tissue_type'.
+        """
+        rois = self.rois if rois is None else rois
+
+        tissue_types = pd.Series(
+            data=np.where(rois < 10000, "Parenchyma", np.where(rois < 20000, "CSF", "Dura")),
+            index=rois,
+            name="tissue_type",
+        )
+
+        ret = pd.DataFrame(tissue_types, columns=["tissue_type"]).rename_axis("ROI").reset_index()
+        ret["FreeSurfer_ROI"] = ret["ROI"] % 10000
+        return ret
 
 
 def default_segmentation_groups() -> dict[str, list[int]]:
@@ -143,9 +317,9 @@ def validate_lut_file(filepath: Path) -> bool:
     return False
 
 
-def resolve_lut_path(filename: Path | None = None) -> Path:
+def resolve_freesurfer_lut_path(filename: Path | None = None) -> Path:
     """
-    Resolves and validates the file path for a Color Lookup Table.
+    Resolves and validates the file path for a Color Lookup Table in FreeSurfer.
 
     If a filename is provided, it validates it. If it doesn't exist, it uses
     that path as the download target. If no filename is provided, it defaults
@@ -191,7 +365,7 @@ def resolve_lut_path(filename: Path | None = None) -> Path:
     return target_path
 
 
-def read_lut(filename: Path | None = None) -> pd.DataFrame:
+def read_freesurfer_lut(filename: Path | None = None) -> pd.DataFrame:
     """
     Reads a FreeSurfer Color Lookup Table text file into a Pandas DataFrame.
 
@@ -203,7 +377,7 @@ def read_lut(filename: Path | None = None) -> pd.DataFrame:
     Returns:
         pd.DataFrame: A DataFrame with columns ['label', 'description', 'R', 'G', 'B', 'A'].
     """
-    resolved_path = resolve_lut_path(filename)
+    resolved_path = resolve_freesurfer_lut_path(filename)
 
     with open(resolved_path, "r", encoding="utf-8") as f:
         records = [lut_record(m) for m in map(LUT_REGEX.match, f) if m is not None]
@@ -215,7 +389,7 @@ def write_lut(filename: Path, table: pd.DataFrame):
     """
     Writes a Pandas DataFrame back to the FreeSurfer Color Lookup Table text format.
 
-    Reverses the normalization applied during `read_lut`, converting float [0.0, 1.0] RGBA
+    Reverses the normalization applied during `read_freesurfer_lut`, converting float [0.0, 1.0] RGBA
     values back to integer [0, 255] values, and re-inverting the Alpha channel.
 
     Args:

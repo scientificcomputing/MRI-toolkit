@@ -1,25 +1,61 @@
-"""Tests for Segmentation Groups and LUT Modules
-
-Copyright (C) 2026   Jørgen Riseth (jnriseth@gmail.com)
-Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
-Copyright (C) 2026   Simula Research Laboratory
-"""
-
+from pathlib import Path
 from unittest.mock import patch
 
+import numpy as np
 import pandas as pd
 import pytest
 
 from mritk.segmentation import (
     LUT_REGEX,
     VENTRICLES,
+    ExtendedFreeSurferSegmentation,
+    Segmentation,
     default_segmentation_groups,
     lut_record,
-    read_lut,
-    resolve_lut_path,
+    read_freesurfer_lut,
+    resolve_freesurfer_lut_path,
     validate_lut_file,
     write_lut,
 )
+
+
+def test_segmentation_initialization(example_segmentation: Segmentation):
+    assert example_segmentation.data.shape == (100, 4)
+    assert example_segmentation.affine.shape == (4, 4)
+    assert example_segmentation.num_rois == 3
+    assert set(example_segmentation.roi_labels) == {1, 2, 3}
+    assert example_segmentation.lut.shape == (3, 1)
+    assert set(example_segmentation.lut.columns) == {"Label"}
+
+
+def test_freesurfer_segmentation_labels(mri_data_dir: Path):
+    fs_seg = ExtendedFreeSurferSegmentation.from_file(
+        mri_data_dir
+        / "mri-processed"
+        / "mri_processed_data"
+        / "sub-01"
+        / "segmentations"
+        / "sub-01_seg-aparc+aseg_refined.nii.gz"
+    )
+
+    labels = fs_seg.get_roi_labels()
+    assert not labels.empty
+    assert set(labels["ROI"]) == set(fs_seg.roi_labels)
+
+
+def test_extended_freesurfer_segmentation_labels(example_segmentation: Segmentation, mri_data_dir: Path):
+    data = example_segmentation.data
+    data[0:2, 0:2] = 10001  # csf
+    data[3:5, 3:5] = 20001  # dura
+
+    ext_fs_seg = ExtendedFreeSurferSegmentation(data, affine=np.eye(4))
+    labels = ext_fs_seg.get_roi_labels()
+
+    assert set(labels["ROI"]) == set(ext_fs_seg.roi_labels)
+    assert labels.loc[labels["ROI"] == 10001, "tissue_type"].iloc[0] == "CSF"
+    assert labels.loc[labels["ROI"] == 20001, "tissue_type"].iloc[0] == "Dura"
+    assert labels.loc[labels["ROI"] == 10001, "Label"].iloc[0] == labels.loc[labels["ROI"] == 1, "Label"].iloc[0]
+    assert labels.loc[labels["ROI"] == 20001, "Label"].iloc[0] == labels.loc[labels["ROI"] == 1, "Label"].iloc[0]
 
 
 def test_default_segmentation_groups():
@@ -74,31 +110,31 @@ def test_validate_lut_file_empty(tmp_path):
     assert validate_lut_file(empty_file) is False
 
 
-def test_resolve_lut_path_existing_invalid_raises_error(tmp_path):
+def test_resolve_freesurfer_lut_path_existing_invalid_raises_error(tmp_path):
     """Test that providing an existing but invalid file raises a ValueError."""
     invalid_file = tmp_path / "bad_lut.txt"
     invalid_file.write_text("Not a LUT file.")
 
     with pytest.raises(ValueError, match="invalid or corrupted"):
-        resolve_lut_path(invalid_file)
+        resolve_freesurfer_lut_path(invalid_file)
 
 
-def test_resolve_lut_path_custom_target_download(tmp_path):
+def test_resolve_freesurfer_lut_path_custom_target_download(tmp_path):
     """Test that missing custom files trigger a download to the specified custom path."""
     custom_target = tmp_path / "my_custom_folder" / "my_lut.txt"
 
     # File does not exist yet. It should be downloaded directly to `custom_target`
-    resolved_path = resolve_lut_path(custom_target)
+    resolved_path = resolve_freesurfer_lut_path(custom_target)
 
     assert resolved_path == custom_target
     assert custom_target.exists()
     assert validate_lut_file(custom_target) is True
 
 
-def test_resolve_lut_path_default_download(tmp_path):
+def test_resolve_freesurfer_lut_path_default_download(tmp_path):
     """Test that if no file is provided, it downloads to the default location."""
     with patch("os.environ", {}), patch("pathlib.Path.cwd", return_value=tmp_path):
-        resolved_path = resolve_lut_path(None)
+        resolved_path = resolve_freesurfer_lut_path(None)
 
         expected_target = tmp_path / "FreeSurferColorLUT.txt"
         assert resolved_path == expected_target
@@ -106,7 +142,7 @@ def test_resolve_lut_path_default_download(tmp_path):
         assert validate_lut_file(expected_target) is True
 
 
-def test_read_lut_file_io(tmp_path):
+def test_read_freesurfer_lut_file_io(tmp_path):
     """Test reading a real LUT file written to disk."""
     dummy_lut_file = tmp_path / "dummy_lut.txt"
     dummy_lut_file.write_text(
@@ -115,7 +151,7 @@ def test_read_lut_file_io(tmp_path):
         "3   Left-Cerebral-Cortex            205 62  78  0\n"
     )
 
-    df = read_lut(dummy_lut_file)
+    df = read_freesurfer_lut(dummy_lut_file)
 
     assert len(df) == 2
     assert df.iloc[0]["label"] == 2

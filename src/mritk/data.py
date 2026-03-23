@@ -5,13 +5,82 @@
 # Copyright (C) 2026   Simula Research Laboratory
 
 
-import re
 from pathlib import Path
 from typing import Optional
 
 import nibabel
 import numpy as np
 import numpy.typing as npt
+
+
+def load_mri_data(path: Path | str, dtype: npt.DTypeLike | None = None, orient: bool = True) -> tuple[np.ndarray, np.ndarray]:
+    """Load MRI data from a file and return the data array and affine matrix.
+
+    Args:
+        path: Path to the MRI file.
+        dtype: Data type for the returned array.
+        orient: Whether to reorient the data.
+
+    Returns:
+        Tuple of (data, affine) arrays.
+    """
+    filepath = Path(path)
+    suffix = check_suffix(filepath)
+    if suffix in (".nii", ".nii.gz"):
+        mri = nibabel.nifti1.load(filepath)
+    elif suffix in (".mgz", ".mgh"):
+        mri = nibabel.freesurfer.mghformat.load(filepath)
+    else:
+        raise ValueError(f"Invalid suffix {filepath}, should be either '.nii', or '.mgz'")
+
+    affine = mri.affine
+    if affine is None:
+        raise RuntimeError("MRI do not contain affine")
+
+    kwargs = {}
+    if dtype is not None:
+        kwargs["dtype"] = dtype
+    data = np.asarray(mri.get_fdata("unchanged"), **kwargs)
+
+    if orient:
+        data, affine = data_reorientation(data, affine)
+
+    return data, affine
+
+
+def save_mri_data(data: np.ndarray, affine: np.ndarray, path: Path | str, intent_code: Optional[int] = None):
+    """Save MRI data to a file.
+
+    Args:
+        data: The MRI data array to save.
+        affine: The affine transformation matrix associated with the data.
+        path: Path to the file to save.
+        dtype: Data type for the saved array.
+        intent_code: Intent code for the saved file.
+    """
+    save_path = Path(path)
+    suffix = check_suffix(save_path)
+    if suffix in (".nii", ".nii.gz"):
+        nii = nibabel.nifti1.Nifti1Image(data, affine)
+        if intent_code is not None:
+            nii.header.set_intent(intent_code)
+        nibabel.nifti1.save(nii, save_path)
+    elif suffix in (".mgz", ".mgh"):
+        mgh = nibabel.freesurfer.mghformat.MGHImage(data, affine)
+        if intent_code is not None:
+            mgh.header.set_intent(intent_code)
+        nibabel.freesurfer.mghformat.save(mgh, save_path)
+    else:
+        raise ValueError(f"Invalid suffix {save_path}, should be either '.nii', or '.mgz'")
+
+
+def check_suffix(filepath: Path):
+    suffix = filepath.suffix
+    if suffix == ".gz":
+        suffixes = filepath.suffixes
+        if len(suffixes) >= 2 and suffixes[-2] == ".nii":
+            return ".nii.gz"
+    return suffix
 
 
 class MRIData:
@@ -23,52 +92,29 @@ class MRIData:
     def shape(self) -> tuple[int, ...]:
         return self.data.shape
 
+    def get_data(self):
+        return self.data
+
+    def get_metadata(self):
+        return self.affine
+
+    @property
+    def voxel_ml_volume(self) -> float:
+        # Calculate the volume of a single voxel in milliliters
+        voxel_volume_mm3 = abs(np.linalg.det(self.affine[:3, :3]))
+        voxel_volume_ml = voxel_volume_mm3 / 1000.0  # Convert from mm^3 to ml
+        return voxel_volume_ml
+
     @classmethod
     def from_file(cls, path: Path | str, dtype: npt.DTypeLike | None = None, orient: bool = True) -> "MRIData":
-        suffix_regex = re.compile(r".+(?P<suffix>(\.nii(\.gz|)|\.mg(z|h)))")
-        m = suffix_regex.match(Path(path).name)
-        if (m is not None) and (m.groupdict()["suffix"] in (".nii", ".nii.gz")):
-            mri = nibabel.nifti1.load(path)
-        elif (m is not None) and (m.groupdict()["suffix"] in (".mgz", ".mgh")):
-            mri = nibabel.freesurfer.mghformat.load(path)
-        else:
-            raise ValueError(f"Invalid suffix {path}, should be either '.nii', or '.mgz'")
-
-        affine = mri.affine
-        if affine is None:
-            raise RuntimeError("MRI do not contain affine")
-
-        kwargs = {}
-        if dtype is not None:
-            kwargs["dtype"] = dtype
-        data = np.asarray(mri.get_fdata("unchanged"), **kwargs)
-
-        mri = cls(data=data, affine=affine)
-
-        if orient:
-            return data_reorientation(mri)
-        else:
-            return mri
+        data, affine = load_mri_data(path, dtype=dtype, orient=orient)
+        return cls(data=data, affine=affine)
 
     def save(self, path: Path | str, dtype: npt.DTypeLike | None = None, intent_code: Optional[int] = None):
         if dtype is None:
             dtype = self.data.dtype
         data = self.data.astype(dtype)
-
-        suffix_regex = re.compile(r".+(?P<suffix>(\.nii(\.gz|)|\.mg(z|h)))")
-        m = suffix_regex.match(Path(path).name)
-        if (m is not None) and (m.groupdict()["suffix"] in (".nii", ".nii.gz")):
-            nii = nibabel.nifti1.Nifti1Image(data, self.affine)
-            if intent_code is not None:
-                nii.header.set_intent(intent_code)
-            nibabel.nifti1.save(nii, path)
-        elif (m is not None) and (m.groupdict()["suffix"] in (".mgz", ".mgh")):
-            mgh = nibabel.freesurfer.mghformat.MGHImage(data, self.affine)
-            if intent_code is not None:
-                mgh.header.set_intent(intent_code)
-            nibabel.freesurfer.mghformat.save(mgh, path)
-        else:
-            raise ValueError(f"Invalid suffix {path}, should be either '.nii', or '.mgz'")
+        save_mri_data(data, self.affine, path, intent_code=intent_code)
 
 
 def physical_to_voxel_indices(physical_coordinates: np.ndarray, affine: np.ndarray, round_coords: bool = True) -> np.ndarray:
@@ -147,7 +193,7 @@ def apply_affine(T: np.ndarray, X: np.ndarray) -> np.ndarray:
     return A.dot(X.T).T + b
 
 
-def data_reorientation(mri_data: MRIData) -> MRIData:
+def data_reorientation(data: np.ndarray, affine: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
     """Reorient the data array and affine matrix to the canonical orientation.
 
     This function adjusts the data array layout (via transpositions and flips)
@@ -159,15 +205,16 @@ def data_reorientation(mri_data: MRIData) -> MRIData:
         The physical coordinate system remains unchanged (e.g., RAS stays RAS).
 
     Args:
-        mri_data: The input MRI data object containing the data array and affine.
+        data: The input MRI data array.
+        affine: The input affine transformation matrix.
 
     Returns:
-        A new MRIData object with reoriented data and updated affine matrix.
+        A tuple containing the reoriented data array and updated affine matrix.
     """
-    A = mri_data.affine[:3, :3]
+    A = affine[:3, :3]
     flips = np.sign(A[np.argmax(np.abs(A), axis=0), np.arange(3)]).astype(int)
     permutes = np.argmax(np.abs(A), axis=0)
-    offsets = ((1 - flips) // 2) * (np.array(mri_data.data.shape[:3]) - 1)
+    offsets = ((1 - flips) // 2) * (np.array(data.shape[:3]) - 1)
 
     # Index flip matrix
     F = np.eye(4, dtype=int)
@@ -176,14 +223,10 @@ def data_reorientation(mri_data: MRIData) -> MRIData:
 
     # Index permutation matrix
     P = np.eye(4, dtype=int)[[*permutes, 3]]
-    affine = mri_data.affine @ F @ P
+    affine = affine @ F @ P
     inverse_permutes = np.argmax(P[:3, :3].T, axis=1)
-    data = (
-        mri_data.data[:: flips[0], :: flips[1], :: flips[2], ...]
-        .transpose([*inverse_permutes, *list(range(3, mri_data.data.ndim))])
-        .copy()
-    )
-    return MRIData(data, affine)
+    data = data[:: flips[0], :: flips[1], :: flips[2], ...].transpose([*inverse_permutes, *list(range(3, data.ndim))]).copy()
+    return data, affine
 
 
 def change_of_coordinates_map(orientation_in: str, orientation_out: str) -> np.ndarray:

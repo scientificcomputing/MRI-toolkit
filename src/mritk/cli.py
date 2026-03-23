@@ -9,7 +9,7 @@ from typing import Optional, Sequence
 from rich.logging import RichHandler
 from rich_argparse import RichHelpFormatter
 
-from . import concentration, datasets, hybrid, info, looklocker, mixed, napari, r1, show, stats
+from . import concentration, datasets, hybrid, info, looklocker, mixed, napari, r1, show, statistics
 
 
 def version_info():
@@ -67,7 +67,7 @@ def setup_parser():
     info_parser.add_argument("--json", action="store_true", help="Output information in JSON format")
 
     stats_parser = subparsers.add_parser("stats", help="Compute MRI statistics", formatter_class=parser.formatter_class)
-    stats.add_arguments(stats_parser)
+    statistics.cli.add_arguments(stats_parser)
 
     show_parser = subparsers.add_parser("show", help="Show MRI data in a terminal", formatter_class=parser.formatter_class)
     show.add_arguments(show_parser)
@@ -132,7 +132,7 @@ def dispatch(parser: argparse.ArgumentParser, argv: Optional[Sequence[str]] = No
             file = args.pop("file")
             info.nifty_info(file, json_output=args.pop("json"))
         elif command == "stats":
-            stats.dispatch(args)
+            statistics.cli.dispatch(args)
         elif command == "show":
             show.dispatch(args)
         elif command == "napari":
