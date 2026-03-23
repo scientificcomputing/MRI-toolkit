@@ -132,7 +132,7 @@ def compute_looklocker_t1_array(data: np.ndarray, time_s: np.ndarray, t1_roof: f
 
     logger.debug(f"Starting fitting for {len(d_masked)} voxels.")
     with tqdm.tqdm(total=len(d_masked), desc="Fitting Look-Locker Voxels") as pbar:
-        voxel_fitter = partial(fit_voxel, time_s, pbar)
+        voxel_fitter = partial(fit_voxel, time_s=time_s, pbar=pbar)
         vfunc = np.vectorize(voxel_fitter, signature="(n) -> (3)")
         fitted_coefficients = vfunc(d_masked)
 
