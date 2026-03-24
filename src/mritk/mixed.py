@@ -101,7 +101,12 @@ def extract_single_volume(D: np.ndarray, frame_fg) -> MRIData:
 
 
 def mixed_t1map(
-    SE_nii_path: Path, IR_nii_path: Path, meta_path: Path, T1_low: float, T1_high: float, output: Path | None = None
+    SE_nii_path: Path,
+    IR_nii_path: Path,
+    meta_path: Path,
+    T1_low: float = 500.0,
+    T1_high: float = 5000.0,
+    output: Path | None = None,
 ) -> nibabel.nifti1.Nifti1Image:
     """
     Generates a T1 relaxation map by combining Spin-Echo (SE) and Inversion-Recovery (IR) acquisitions.
@@ -116,8 +121,8 @@ def mixed_t1map(
         IR_nii_path (Path): Path to the Inversion-Recovery corrected real NIfTI file.
         meta_path (Path): Path to the JSON file containing the sequence parameters
             ('TR_SE', 'TI', 'TE', 'ETL').
-        T1_low (float): Lower bound for the T1 interpolation grid (in ms).
-        T1_high (float): Upper bound for the T1 interpolation grid (in ms).
+        T1_low (float): Lower bound for the T1 interpolation grid (in ms). Defaults to 500 ms.
+        T1_high (float): Upper bound for the T1 interpolation grid (in ms). Defaults to 5000 ms.
         output (Path | None, optional): Path to save the resulting T1 map NIfTI file. Defaults to None.
 
     Returns:
@@ -187,7 +192,9 @@ def mixed_t1map_postprocessing(SE_nii_path: Path, T1_path: Path, output: Path | 
     return masked_t1map_nii
 
 
-def compute_mixed_t1_array(se_data: np.ndarray, ir_data: np.ndarray, meta: dict, t1_low: float, t1_high: float) -> np.ndarray:
+def compute_mixed_t1_array(
+    se_data: np.ndarray, ir_data: np.ndarray, meta: dict, t1_low: float = 500.0, t1_high: float = 5000.0
+) -> np.ndarray:
     """
     Computes a Mixed T1 array from Spin-Echo and Inversion-Recovery volumes using a lookup table.
 
@@ -195,8 +202,8 @@ def compute_mixed_t1_array(se_data: np.ndarray, ir_data: np.ndarray, meta: dict,
         se_data (np.ndarray): 3D numpy array of the Spin-Echo modulus data.
         ir_data (np.ndarray): 3D numpy array of the Inversion-Recovery corrected real data.
         meta (dict): Dictionary containing sequence parameters ('TR_SE', 'TI', 'TE', 'ETL').
-        t1_low (float): Lower bound for T1 generation grid.
-        t1_high (float): Upper bound for T1 generation grid.
+        t1_low (float): Lower bound for T1 generation grid. Defaults to 500 ms.
+        t1_high (float): Upper bound for T1 generation grid. Defaults to 5000 ms.
 
     Returns:
         np.ndarray: Computed T1 map as a 3D float32 array.
