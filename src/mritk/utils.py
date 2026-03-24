@@ -95,7 +95,7 @@ def curve_fit_wrapper(f, t: np.ndarray, y: np.ndarray, p0: np.ndarray):
     return popt
 
 
-def fit_voxel(time_s: np.ndarray, pbar, m: np.ndarray) -> np.ndarray:
+def fit_voxel(time_s: np.ndarray, m: np.ndarray, pbar=None) -> np.ndarray:
     """
     Fits the Look-Locker relaxation curve for a single voxel's time series.
 
@@ -105,8 +105,8 @@ def fit_voxel(time_s: np.ndarray, pbar, m: np.ndarray) -> np.ndarray:
 
     Args:
         time_s (np.ndarray): 1D array of trigger times in seconds.
-        pbar: A tqdm progress bar instance (or None) to update incrementally.
         m (np.ndarray): 1D array of signal magnitudes over time for the voxel.
+        pbar: A tqdm progress bar instance (or None) to update incrementally.
 
     Returns:
         np.ndarray: A 3-element array containing the fitted parameters `[x1, x2, x3]`.
