@@ -2,34 +2,40 @@ from pathlib import Path
 from unittest.mock import patch
 
 import numpy as np
-import pytest
 
 import mritk.cli
 from mritk.looklocker import (
     create_largest_island_mask,
-    looklocker_t1map,
-    looklocker_t1map_postprocessing,
     remove_outliers,
 )
-from mritk.testing import compare_nifti_images
 
 
-@pytest.mark.skip(reason="Takes too long")
-def test_looklocker_t1map(tmp_path, mri_data_dir: Path):
+def test_looklocker_t1map(tmp_path, mri_data_dir: Path, gonzo_roi):
     LL_path = mri_data_dir / "mri-dataset/mri_dataset/sub-01" / "ses-01/anat/sub-01_ses-01_acq-looklocker_IRT1.nii.gz"
     timestamps = (
         mri_data_dir / "mri-dataset/mri_dataset/sub-01" / "ses-01/anat/sub-01_ses-01_acq-looklocker_IRT1_trigger_times.txt"
     )
     T1_low = 100
     T1_high = 6000
+    ll_file = mritk.MRIData.from_file(LL_path, dtype=np.single)
+    vi = gonzo_roi.voxel_indices(affine=ll_file.affine)
+    v = ll_file.data[tuple(vi.T)].reshape((*gonzo_roi.shape, -1))
+    piece_ll_data = mritk.MRIData(data=v, affine=gonzo_roi.affine)
+    ll_piece_path = Path("piece_ll.nii.gz")
+    piece_ll_data.save(ll_piece_path)
 
-    ref_output = mri_data_dir / "mri-dataset/mri_dataset/derivatives/sub-01" / "ses-01/sub-01_ses-01_acq-looklocker_T1map.nii.gz"
-    test_output_raw = tmp_path / "output_acq-looklocker_T1map_raw.nii.gz"
-    test_output = tmp_path / "output_acq-looklocker_T1map.nii.gz"
+    ll_data = mritk.looklocker.LookLocker.from_file(ll_piece_path, timestamps)
+    t1_map = ll_data.t1_map()
+    t1_post = t1_map.postprocess(T1_high=T1_high, T1_low=T1_low)
 
-    looklocker_t1map(looklocker_input=LL_path, timestamps=timestamps, output=test_output_raw)
-    looklocker_t1map_postprocessing(T1map=test_output_raw, T1_low=T1_low, T1_high=T1_high, output=test_output)
-    compare_nifti_images(test_output, ref_output, data_tolerance=1e-12)
+    t1_arr = t1_post.data
+
+    ref_output = mri_data_dir / "mri-processed/mri_dataset/derivatives/sub-01/ses-01/sub-01_ses-01_acq-looklocker_T1map.nii.gz"
+    ll_ref = mritk.MRIData.from_file(ref_output, dtype=np.single)
+    v_ref = ll_ref.data[tuple(vi.T)].reshape((*gonzo_roi.shape,))
+    # v_ref = mritk.looklocker.remove_outliers(v_ref, t1_low=T1_low, t1_high=T1_high)
+
+    mritk.testing.compare_nifti_arrays(t1_arr, v_ref, data_tolerance=1e-12)
 
 
 def test_remove_outliers():

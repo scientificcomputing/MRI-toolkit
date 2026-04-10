@@ -6,7 +6,7 @@
 
 
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 import nibabel
 import numpy as np
@@ -176,6 +176,42 @@ def find_nearest_valid_voxels(query_indices: np.ndarray, mask: np.ndarray, k: in
     if k == 1:
         dof_neighbours = dof_neighbours[:, np.newaxis, :]
     return dof_neighbours
+
+
+def aggregate_nearest_valid_voxels(
+    data: np.ndarray, query_indices: np.ndarray, mask: np.ndarray | None = None, k: int = 10, agg_func: Callable = np.nanmedian
+) -> np.ndarray:
+    """Finds the `k` nearest valid voxels for each query index and aggregates their values.
+
+    Args:
+        data: (X, Y, Z) array of data values to sample from.
+        query_indices: (N, 3) array of voxel indices to find neighbors for.
+        mask: (X, Y, Z) boolean mask array indicating which voxels are valid neighbors.
+        k: Number of nearest neighbors to find.
+        agg_func: Aggregation function to apply over the `k` neighbors (default: np.median).
+                  Must accept an `axis` keyword argument.
+
+    Returns:
+        (N,) array of aggregated values for each query point.
+    """
+
+    if mask is None:
+        # If no mask is provided, consider all non-nan voxels as valid.
+        mask = np.isfinite(data)
+    # 1. Get the spatial indices of the nearest valid voxels.
+    # Returned shape is (3, k, N) where 3 corresponds to the x, y, z dimensions.
+    nearest_coords = find_nearest_valid_voxels(query_indices, mask, k)
+
+    # 2. Extract the data values using advanced numpy indexing.
+    # nearest_coords[0], nearest_coords[1], and nearest_coords[2] each have shape (k, N).
+    # The resulting extracted_values array will also have shape (k, N).
+    extracted_values = data[nearest_coords[0], nearest_coords[1], nearest_coords[2]]
+
+    # 3. Aggregate the extracted values across the neighbor dimension (axis=0).
+    # The output will be collapsed to shape (N,).
+    aggregated_values = agg_func(extracted_values, axis=0)
+
+    return aggregated_values
 
 
 def apply_affine(T: np.ndarray, X: np.ndarray) -> np.ndarray:

@@ -132,7 +132,7 @@ def fit_voxel(time_s: np.ndarray, m: np.ndarray, pbar=None) -> np.ndarray:
     return popt
 
 
-def nan_filter_gaussian(U: np.ndarray, sigma: float, truncate: float = 4.0) -> np.ndarray:
+def nan_filter_gaussian(U: np.ndarray, sigma: float, truncate: float = 4.0, mode: str = "constant") -> np.ndarray:
     """
     Applies a Gaussian filter to an array containing NaNs, smoothly interpolating
     the missing values.
@@ -146,17 +146,18 @@ def nan_filter_gaussian(U: np.ndarray, sigma: float, truncate: float = 4.0) -> n
         U (np.ndarray): Input array potentially containing NaN values.
         sigma (float): Standard deviation for the Gaussian kernel.
         truncate (float, optional): Truncate the filter at this many standard deviations. Defaults to 4.0.
+        mode (str, optional): Mode for handling edges. Defaults to "constant".
 
     Returns:
         np.ndarray: Filtered array where original NaN values have been interpolated.
     """
     V = U.copy()
     V[np.isnan(U)] = 0
-    VV = scipy.ndimage.gaussian_filter(V, sigma=sigma, truncate=truncate)
+    VV = scipy.ndimage.gaussian_filter(V, sigma=sigma, truncate=truncate, mode=mode)
 
     W = np.ones_like(U)
     W[np.isnan(U)] = 0
-    WW = scipy.ndimage.gaussian_filter(W, sigma=sigma, truncate=truncate)
+    WW = scipy.ndimage.gaussian_filter(W, sigma=sigma, truncate=truncate, mode=mode)
     mask = ~((WW == 0) * (VV == 0))
     out = np.nan * np.zeros_like(U)
     out[mask] = VV[mask] / WW[mask]

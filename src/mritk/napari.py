@@ -52,6 +52,8 @@ def dispatch(args):
 
         mri_resource = MRIData.from_file(file_path)
         data = mri_resource.data
-        viewer.add_image(data, name=file_path.stem)
+        affine = mri_resource.affine
+
+        viewer.add_image(data, affine=affine, name=file_path.stem)
 
     napari.run()
