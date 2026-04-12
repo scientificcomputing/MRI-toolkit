@@ -12,7 +12,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import skimage
@@ -150,125 +149,31 @@ def compute_looklocker_t1_array(data: np.ndarray, time_s: np.ndarray, t1_roof: f
     return np.minimum(t1map, t1_roof)
 
 
-def looklocker_t1map_postprocessing(
-    T1map: Path,
-    T1_low: float,
-    T1_high: float,
-    radius: int = 10,
-    erode_dilate_factor: float = 1.3,
-    mask: Optional[np.ndarray] = None,
-    output: Path | None = None,
-) -> MRIData:
-    """
-    Performs quality-control and post-processing on a raw Look-Locker T1 map.
-
-    Args:
-        T1map (Path): Path to the raw, unmasked Look-Locker T1 map NIfTI file.
-        T1_low (float): Lower physiological limit for T1 values (in ms).
-        T1_high (float): Upper physiological limit for T1 values (in ms).
-        radius (int, optional): Base radius for morphological dilation when generating
-            the automatic mask. Defaults to 10.
-        erode_dilate_factor (float, optional): Multiplier for the erosion radius
-            relative to the dilation radius to ensure tight mask edges. Defaults to 1.3.
-        mask (Optional[np.ndarray], optional): Pre-computed 3D boolean mask. If None,
-            one is generated automatically. Defaults to None.
-        output (Path | None, optional): Path to save the cleaned T1 map. Defaults to None.
-
-    Returns:
-        MRIData: An MRIData object containing the cleaned, masked, and interpolated T1 map.
-
-    Raises:
-        RuntimeError: If more than 99% of the voxels are removed during the outlier
-            filtering step, indicating a likely unit mismatch (e.g., T1 in seconds instead of ms).
-
-    Notes:
-        This function cleans up noisy T1 fits by applying a three-step pipeline:
-        1. Masking: If no mask is provided, it automatically isolates the brain/head by
-        finding the largest contiguous tissue island and applying morphological smoothing.
-        2. Outlier Removal: Voxels falling outside the provided physiological bounds
-        [T1_low, T1_high] are discarded (set to NaN).
-        3. Interpolation: Internal "holes" (NaNs) created by poor fits or outlier
-        removal are iteratively filled using a specialized Gaussian filter that
-        interpolates from surrounding valid tissue without blurring the edges.
-    """
-    logger.info(f"Post-processing Look-Locker T1 map at {T1map} with T1 range [{T1_low}, {T1_high}] ms.")
-    t1map_mri = MRIData.from_file(T1map, dtype=np.single)
-    t1map_data = t1map_mri.data.copy()
-
-    if mask is None:
-        logger.debug("No mask provided, generating automatic mask based on the largest contiguous tissue island.")
-        mask = create_largest_island_mask(t1map_data, radius, erode_dilate_factor)
-    else:
-        logger.debug("Using provided mask for post-processing.")
-
-    t1map_data = remove_outliers(t1map_data, mask, T1_low, T1_high)
-
-    if np.isfinite(t1map_data).sum() / t1map_data.size < 0.01:
-        raise RuntimeError("After outlier removal, less than 1% of the image is left. Check image units.")
-
-    # Fill internal missing values iteratively using a Gaussian filter
-    fill_mask = np.isnan(t1map_data) & mask
-    logger.debug(f"Initial fill mask has {fill_mask.sum()} voxels.")
-    while fill_mask.sum() > 0:
-        logger.info(f"Filling in {fill_mask.sum()} voxels within the mask.")
-        t1map_data[fill_mask] = nan_filter_gaussian(t1map_data, 1.0)[fill_mask]
-        fill_mask = np.isnan(t1map_data) & mask
-
-    processed_T1map = MRIData(t1map_data, t1map_mri.affine)
-    if output is not None:
-        processed_T1map.save(output, dtype=np.single)
-        logger.info(f"Post-processed Look-Locker T1 map saved to {output}.")
-    else:
-        logger.info("No output path provided, returning post-processed Look-Locker T1 map as MRIData object.")
-
-    return processed_T1map
-
-
-def looklocker_t1map(looklocker_input: Path, timestamps: Path, output: Path | None = None) -> MRIData:
-    """
-    Generates a T1 map from a 4D Look-Locker inversion recovery dataset.
-
-    This function acts as an I/O wrapper. It loads the 4D Look-Locker sequence
-    and the corresponding trigger times. It converts the timestamps from milliseconds
-    (standard DICOM/text output) to seconds, which is required by the underlying
-    exponential fitting math, and triggers the voxel-by-voxel T1 calculation.
-
-    Args:
-        looklocker_input (Path): Path to the 4D Look-Locker NIfTI file.
-        timestamps (Path): Path to the text file containing the nominal trigger
-            delay times (in milliseconds) for each volume in the 4D series.
-        output (Path | None, optional): Path to save the resulting T1 map NIfTI file. Defaults to None.
-
-    Returns:
-        MRIData: An MRIData object containing the computed 3D T1 map (in milliseconds)
-        and the original affine transformation matrix.
-    """
-
-    ll_mri = MRIData.from_file(looklocker_input, dtype=np.single)
-    # Convert timestamps from milliseconds to seconds
-    time_s = np.loadtxt(timestamps) / 1000.0
-
-    t1map_array = compute_looklocker_t1_array(ll_mri.data, time_s)
-    t1map_mri = MRIData(t1map_array.astype(np.single), ll_mri.affine)
-
-    if output is not None:
-        t1map_mri.save(output, dtype=np.single)
-        logger.info(f"Look-Locker T1 map saved to {output}.")
-    else:
-        logger.info("No output path provided, returning Look-Locker T1 map as MRIData object.")
-
-    return t1map_mri
-
-
 @dataclass
 class LookLockerT1:
-    t1_map: MRIData
+    """A class representing a Look-Locker T1 map with post-processing capabilities.
+
+    Args:
+        mri (MRIData): An MRIData object containing the raw T1 map data and affine transformation.
+    """
+
+    mri: MRIData
 
     @classmethod
     def from_file(cls, t1map_path: Path) -> "LookLockerT1":
+        """Loads a Look-Locker T1 map from a NIfTI file.
+
+        Args:
+            t1map_path (Path): The file path to the Look-Locker T1 map
+            NIfTI file.
+        Returns:
+            LookLockerT1: An instance of the LookLockerT1 class containing the loaded
+            T1 map data and affine transformation.
+        """
+
         logger.info(f"Loading Look-Locker T1 map from {t1map_path}.")
-        t1_map = MRIData.from_file(t1map_path, dtype=np.single)
-        return cls(t1_map=t1_map)
+        mri = MRIData.from_file(t1map_path, dtype=np.single)
+        return cls(mri=mri)
 
     def postprocess(
         self,
@@ -309,7 +214,7 @@ class LookLockerT1:
             interpolates from surrounding valid tissue without blurring the edges.
         """
         logger.info(f"Post-processing Look-Locker T1 map with T1 range [{T1_low}, {T1_high}] ms.")
-        t1map_data = self.t1_map.data.copy()
+        t1map_data = self.mri.data.copy()
 
         if mask is None:
             logger.debug("No mask provided, generating automatic mask based on the largest contiguous tissue island.")
@@ -330,7 +235,7 @@ class LookLockerT1:
             t1map_data[fill_mask] = nan_filter_gaussian(t1map_data, 1.0)[fill_mask]
             fill_mask = np.isnan(t1map_data) & mask
 
-        return MRIData(t1map_data, self.t1_map.affine)
+        return MRIData(t1map_data, self.mri.affine)
 
 
 @dataclass
@@ -359,7 +264,7 @@ class LookLocker:
         logger.info("Generating T1 map from Look-Locker data")
         t1map_array = compute_looklocker_t1_array(self.mri.data, self.times)
         mri_data = MRIData(t1map_array.astype(np.single), self.mri.affine)
-        return LookLockerT1(t1_map=mri_data)
+        return LookLockerT1(mri=mri_data)
 
     @classmethod
     def from_file(cls, looklocker_input: Path, timestamps: Path):
@@ -455,15 +360,29 @@ def dispatch(args):
     if command == "dcm2ll":
         dicom_to_looklocker(args.pop("input"), args.pop("output"))
     elif command == "t1":
-        looklocker_t1map(args.pop("input"), args.pop("timestamps"), output=args.pop("output"))
+        ll = LookLocker.from_file(args.pop("input"), args.pop("timestamps"))
+
+        t1_map = ll.t1_map()
+
+        output = args.pop("output")
+        if output is not None:
+            t1_map.mri.save(output, dtype=np.single)
+            logger.info(f"Look-Locker T1 map saved to {output}.")
+        else:
+            logger.info("No output path provided, returning Look-Locker T1 map as MRIData object.")
+
     elif command == "postprocess":
-        looklocker_t1map_postprocessing(
-            T1map=args.pop("input"),
+        t1_map_post = LookLockerT1.from_file(args.pop("input")).postprocess(
             T1_low=args.pop("t1_low"),
             T1_high=args.pop("t1_high"),
             radius=args.pop("radius"),
             erode_dilate_factor=args.pop("erode_dilate_factor"),
-            output=args.pop("output"),
         )
+        output = args.pop("output")
+        if output is not None:
+            t1_map_post.save(output, dtype=np.single)
+            logger.info(f"Post-processed Look-Locker T1 map saved to {output}.")
+        else:
+            logger.info("No output path provided, returning Post-processed Look-Locker T1 map as MRIData object.")
     else:
         raise ValueError(f"Unknown Look-Locker command: {command}")

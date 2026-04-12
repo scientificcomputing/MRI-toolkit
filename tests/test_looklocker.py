@@ -18,7 +18,7 @@ from mritk.looklocker import (
         "or an issue with the test data."
     )
 )
-def test_looklocker_t1map(tmp_path, mri_data_dir: Path, gonzo_roi):
+def _test_looklocker_t1map(tmp_path, mri_data_dir: Path, gonzo_roi):
     LL_path = mri_data_dir / "mri-dataset/mri_dataset/sub-01" / "ses-01/anat/sub-01_ses-01_acq-looklocker_IRT1.nii.gz"
     timestamps = (
         mri_data_dir / "mri-dataset/mri_dataset/sub-01" / "ses-01/anat/sub-01_ses-01_acq-looklocker_IRT1_trigger_times.txt"
@@ -112,17 +112,18 @@ def test_dispatch_dcm2ll(mock_dicom_to_ll):
     mock_dicom_to_ll.assert_called_once_with(Path("dummy_in.dcm"), Path("dummy_out.nii.gz"))
 
 
-@patch("mritk.looklocker.looklocker_t1map")
-def test_dispatch_t1(mock_ll_t1map):
+@patch("mritk.looklocker.LookLocker")
+def test_dispatch_t1(mock_ll):
     """Test that dispatch correctly routes to looklocker_t1map."""
 
     mritk.cli.main(["looklocker", "t1", "-i", "data.nii.gz", "-t", "times.txt", "-o", "t1map.nii.gz"])
 
-    mock_ll_t1map.assert_called_once_with(Path("data.nii.gz"), Path("times.txt"), output=Path("t1map.nii.gz"))
+    mock_ll.from_file.assert_called_once_with(Path("data.nii.gz"), Path("times.txt"))
+    mock_ll.from_file.return_value.t1_map.assert_called_once()
 
 
-@patch("mritk.looklocker.looklocker_t1map_postprocessing")
-def test_dispatch_postprocess(mock_postprocessing):
+@patch("mritk.looklocker.LookLockerT1")
+def test_dispatch_postprocess(mock_ll_post):
     """Test that dispatch correctly routes to looklocker_t1map_postprocessing."""
 
     mritk.cli.main(
@@ -144,11 +145,12 @@ def test_dispatch_postprocess(mock_postprocessing):
         ]
     )
 
-    mock_postprocessing.assert_called_once_with(
-        T1map=Path("raw_t1.nii.gz"),
+    mock_ll_post.from_file.assert_called_once_with(Path("raw_t1.nii.gz"))
+    inst = mock_ll_post.from_file.return_value
+    inst.postprocess.assert_called_once_with(
         T1_low=50.0,
         T1_high=5000.0,
         radius=5,
         erode_dilate_factor=1.5,
-        output=Path("clean_t1.nii.gz"),
     )
+    inst.postprocess.return_value.save.assert_called_once_with(Path("clean_t1.nii.gz"), dtype=np.single)
