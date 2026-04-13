@@ -18,7 +18,7 @@ from mritk.looklocker import (
         "or an issue with the test data."
     )
 )
-def _test_looklocker_t1map(tmp_path, mri_data_dir: Path, gonzo_roi):
+def test_looklocker_t1map(tmp_path, mri_data_dir: Path, gonzo_roi):
     LL_path = mri_data_dir / "mri-dataset/mri_dataset/sub-01" / "ses-01/anat/sub-01_ses-01_acq-looklocker_IRT1.nii.gz"
     timestamps = (
         mri_data_dir / "mri-dataset/mri_dataset/sub-01" / "ses-01/anat/sub-01_ses-01_acq-looklocker_IRT1_trigger_times.txt"
