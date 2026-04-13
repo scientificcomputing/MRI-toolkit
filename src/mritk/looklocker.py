@@ -314,7 +314,9 @@ def add_arguments(
     dicom_parser.add_argument("-i", "--input", type=Path, help="Path to the input Look-Locker DICOM file")
     dicom_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the converted .nii.gz file")
 
-    ll_timestamps = subparser.add_parser("timestamps", help="Read timestamps from DICOM data", formatter_class=parser.formatter_class)
+    ll_timestamps = subparser.add_parser(
+        "timestamps", help="Read timestamps from DICOM data", formatter_class=parser.formatter_class
+    )
     ll_timestamps.add_argument("-i", "--input", type=Path, help="Path to the input Look-Locker DICOM file")
     ll_timestamps.add_argument("-o", "--output", type=Path, help="Desired output path for the generated file")
 
