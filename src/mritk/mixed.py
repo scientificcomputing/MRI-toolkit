@@ -7,6 +7,7 @@
 import argparse
 import json
 import logging
+import typing
 from collections.abc import Callable
 from pathlib import Path
 
@@ -18,9 +19,128 @@ import skimage
 
 from .data import MRIData, change_of_coordinates_map, data_reorientation
 from .masks import create_csf_mask
-from .utils import VOLUME_LABELS, T1_lookup_table, run_dcm2niix
+from .utils import VOLUME_LABELS, run_dcm2niix
 
 logger = logging.getLogger(__name__)
+
+
+T = typing.TypeVar("T", np.ndarray, float)
+
+
+def estimate_se_free_relaxation_time(TRse: float, TE: float, ETL: int) -> float:
+    """
+    Computes the estimated free relaxation time following a Spin Echo image.
+
+    Corrects the standard Repetition Time (TR) by accounting for the Effective
+    Echo Time (TE), the Echo Train Length (ETL), and an adjustment for 20
+    dummy preparation echoes.
+
+    Args:
+        TRse (float): Repetition time of the spin echo sequence (in ms).
+        TE (float): Effective echo time (in ms).
+        ETL (int): Echo train length.
+
+    Returns:
+        float: The corrected free relaxation time `TRfree`.
+    """
+    return TRse - TE * (1 + 0.5 * (ETL - 1) / (0.5 * (ETL + 1) + 20))
+
+
+def T1_lookup_table(TRse: float, TI: float, TE: float, ETL: int, T1_low: float, T1_hi: float) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Generates a Fraction/T1 lookup table for mixed T1 mapping interpolations.
+
+    Calculates the theoretical ratio of the Inversion Recovery signal (Sir) to
+    the Spin Echo signal (Sse) over a highly discretized grid of physiological
+    T1 relaxation times.
+
+    Args:
+        TRse (float): Spin-echo repetition time (in ms).
+        TI (float): Inversion time (in ms).
+        TE (float): Effective echo time (in ms).
+        ETL (int): Echo train length.
+        T1_low (float): Lower bound of the T1 grid (in ms).
+        T1_hi (float): Upper bound of the T1 grid (in ms).
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: A tuple containing:
+            - fractionCurve (np.ndarray): The theoretical Sir/Sse signal ratios.
+            - T1_grid (np.ndarray): The corresponding T1 values (in ms).
+    """
+    TRfree = estimate_se_free_relaxation_time(TRse, TE, ETL)
+    T1_grid = np.arange(int(T1_low), int(T1_hi + 1))
+    S_SE, S_IR = T1_to_mixed_signals(T1_grid, TR=TRfree, TI=TI)
+    fractionCurve = S_IR / S_SE
+    return fractionCurve, T1_grid
+
+
+def T1_to_mixed_signals(T1: T, TR: float, TI: float) -> tuple[np.ndarray, np.ndarray]:
+    """Computes the theoretical Spin-Echo and Inversion-Recovery signals for a given T1.
+
+    Evaluates the standard signal equations for Spin-Echo and Inversion-Recovery
+    sequences based on the provided T1 relaxation time, repetition time (TR),
+    and inversion time (TI).
+
+    Args:
+        T1: The T1 relaxation time (in ms) for which to compute the signals.
+        TR: The repetition time of the Spin-Echo sequence (in ms).
+        TI: The inversion time of the Inversion-Recovery sequence (in ms).
+
+    Returns:
+        tuple[np.ndarray, np.ndarray]: A tuple containing:
+            - S_SE (np.ndarray): The theoretical Spin-Echo signal.
+            - S_IR (np.ndarray): The theoretical Inversion-Recovery signal.
+
+    Notes:
+        The Spin-Echo signal is computed as:
+
+        ..math::
+            S_{SE} = 1 - e^{-TR / T1}
+
+        The Inversion-Recovery signal is computed as:
+
+        ..math::
+            S_{IR} = 1 - (1 + S_{SE}) e^{-TI / T1}
+
+    """
+    S_SE = 1.0 * (1.0 - np.exp(-TR / T1))
+    S_IR = 1.0 - (1.0 + S_SE) * np.exp(-TI / T1)
+    return S_SE, S_IR
+
+
+def T1_to_noisy_T1_mixed(
+    T1_true: np.ndarray, TR: float, TI: float, f_grid: np.ndarray, t_grid: np.ndarray, sigma: float = 0.04
+) -> np.ndarray:
+    """Simulates noisy Mixed T1 estimation from true T1 values using lookup table interpolation.
+
+    Args:
+        T1_true: The true T1 relaxation times (in ms) for which to simulate the noisy estimates.
+        TR: The repetition time of the Spin-Echo sequence (in ms).
+        TI: The inversion time of the Inversion-Recovery sequence (in ms).
+        f_grid: The precomputed grid of theoretical Sir/Sse ratios corresponding to the T1 values in t_grid.
+        t_grid: The precomputed grid of T1 values (in ms) corresponding to the ratios in f_grid.
+        sigma: The standard deviation of the Gaussian noise to be added to the signals. Defaults to 0.04.
+
+    Returns:
+        np.ndarray: The simulated noisy T1 estimates (in ms) obtained
+        by interpolating the noisy signal ratios onto the T1 grid.
+
+    Notes:
+        This function first computes the theoretical Spin-Echo
+        and Inversion-Recovery signals for the given true T1 values,
+        adds Gaussian noise to the Inversion-Recovery signals and Rician
+        noise to the Spin-Echo signals to simulate measurement variability,
+        and then uses the precomputed lookup table (f_grid and t_grid) to
+        interpolate the noisy signal ratios back to T1 estimates.
+    """
+    S_SE_t, S_IR_t = T1_to_mixed_signals(T1_true, TR, TI)
+    real_SE = S_SE_t + np.random.normal(0, sigma, S_SE_t.shape)
+    imag_SE = np.random.normal(0, sigma, S_SE_t.shape)
+    S_SE_noisy = np.sqrt(real_SE**2 + imag_SE**2)
+    S_IR_noisy = S_IR_t + np.random.normal(0, sigma, S_IR_t.shape)
+
+    interpolator = create_interpolator(f_grid, t_grid)
+    return interpolator(S_IR_noisy / S_SE_noisy).astype(np.single)
 
 
 def dicom_standard_affine(frame_fg) -> np.ndarray:
@@ -214,14 +334,24 @@ def compute_mixed_t1_array(
     f_data[nonzero_mask] = ir_data[nonzero_mask] / se_data[nonzero_mask]
 
     tr_se, ti, te, etl = meta["TR_SE"], meta["TI"], meta["TE"], meta["ETL"]
-    f_curve, t1_grid = T1_lookup_table(tr_se, ti, te, etl, t1_low, t1_high)
+    tr_free = estimate_se_free_relaxation_time(tr_se, te, etl)
+
+    t1_grid = np.arange(int(t1_low), int(t1_high + 1))
+    S_SE, S_IR = T1_to_mixed_signals(t1_grid, TR=tr_free, TI=ti)
+    f_curve = S_IR / S_SE
+
     logger.debug(
         f"Generated T1 lookup table with TR_SE={tr_se}, TI={ti}, TE={te}, "
         f"ETL={etl}, T1 range=({t1_low}, {t1_high}), table size={len(t1_grid)}"
     )
-    interpolator = scipy.interpolate.interp1d(f_curve, t1_grid, kind="nearest", bounds_error=False, fill_value=np.nan)
-    logger.debug("Created interpolation function for T1 estimation based on the lookup table.")
+    interpolator = create_interpolator(f_curve, t1_grid)
     return interpolator(f_data).astype(np.single)
+
+
+def create_interpolator(f_grid, t1_grid):
+    interpolator = scipy.interpolate.interp1d(f_grid, t1_grid, kind="nearest", bounds_error=False, fill_value=np.nan)
+    logger.debug("Created interpolation function for T1 estimation based on the lookup table.")
+    return interpolator
 
 
 def _extract_frame_metadata(frame_fg) -> dict:

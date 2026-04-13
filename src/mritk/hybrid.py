@@ -16,7 +16,9 @@ import skimage
 logger = logging.getLogger(__name__)
 
 
-def compute_hybrid_t1_array(ll_data: np.ndarray, mixed_data: np.ndarray, mask: np.ndarray, threshold: float) -> np.ndarray:
+def compute_hybrid_t1_array(
+    ll_data: np.ndarray, mixed_data: np.ndarray, mask: np.ndarray | None = None, threshold: float = 1500
+) -> np.ndarray:
     """
     Creates a hybrid T1 array by selectively substituting Look-Locker voxels with Mixed voxels.
 
@@ -27,15 +29,19 @@ def compute_hybrid_t1_array(ll_data: np.ndarray, mixed_data: np.ndarray, mask: n
         ll_data (np.ndarray): 3D numpy array of Look-Locker T1 values.
         mixed_data (np.ndarray): 3D numpy array of Mixed T1 values.
         mask (np.ndarray): 3D boolean mask (typically eroded CSF).
-        threshold (float): T1 threshold value (in ms).
+        threshold (float): T1 threshold value (in ms), default is 1500 ms.
 
     Returns:
         np.ndarray: Hybrid 3D T1 array.
     """
     logger.debug("Computing hybrid T1 array with threshold %.2f ms.", threshold)
     hybrid = ll_data.copy()
-    newmask = mask & (ll_data > threshold) & (mixed_data > threshold)
+    newmask = (ll_data > threshold) & (mixed_data > threshold)
+    if mask is not None:
+        newmask &= mask
+    logger.debug("Substituting %d voxels based on threshold and mask criteria.", np.sum(newmask))
     hybrid[newmask] = mixed_data[newmask]
+
     return hybrid
 
 

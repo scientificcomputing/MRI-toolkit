@@ -8,6 +8,7 @@ import argparse
 import logging
 import shutil
 import tempfile
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 from functools import partial
@@ -15,13 +16,60 @@ from pathlib import Path
 from typing import Optional
 
 import numpy as np
+import scipy.optimize
 import skimage
 import tqdm
 
 from .data import MRIData
-from .utils import fit_voxel, mri_facemask, nan_filter_gaussian, run_dcm2niix
+from .utils import mri_facemask, nan_filter_gaussian, run_dcm2niix
 
 logger = logging.getLogger(__name__)
+
+
+def T1_to_noisy_T1_looklocker(T1_true: np.ndarray, t_LL: np.ndarray, sigma: float = 0.04, M0: float = 1.0) -> np.ndarray:
+    """Simulates noisy Look-Locker T1 estimation from true T1 values.
+
+    Args:
+        T1_true (np.ndarray): Array of true T1 values in milliseconds.
+        t_LL (np.ndarray): Array of Look-Locker trigger times in seconds.
+        sigma (float, optional): Standard deviation of the noise. Defaults to 0.04.
+        M0 (float, optional): Scaling factor for the signal amplitude. Defaults to 1.0.
+
+    Returns:
+        np.ndarray: Array of estimated T1 values from the noisy Look-Locker signals.
+
+    Notes:
+        We first generate the theoretical Look-Locker signal time series
+        for the given T1 values and trigger times, then add Rician noise
+        to simulate realistic measurement conditions. Finally, we estimate
+        T1 from the noisy signals using the same fitting procedure
+        as applied to real data.
+    """
+    S_LL_t = T1_to_LL_signal(T1_true, t_LL=t_LL, M0=M0)
+    real_LL = S_LL_t + np.random.normal(0, sigma, S_LL_t.shape)
+    imag_LL = np.random.normal(0, sigma, S_LL_t.shape)
+    S_LL_noisy = np.sqrt(real_LL**2 + imag_LL**2)
+
+    return estimate_LL_T1(S_LL_noisy, t_LL)
+
+
+def T1_to_LL_signal(T1: np.ndarray, t_LL: np.ndarray, M0: float = 1.0) -> np.ndarray:
+    """Converts T1 values to theoretical Look-Locker signal magnitudes at specified trigger times.
+
+    Args:
+        T1 (np.ndarray): Array of T1 values in milliseconds.
+        t_LL (np.ndarray): Array of Look-Locker trigger times in seconds.
+        M0 (float, optional): Scaling factor for the signal amplitude. Defaults to 1.0.
+
+    Returns:
+        np.ndarray: 2D array of shape (N_T1, N_timepoints) containing the theoretical
+        Look-Locker signal magnitudes for each T1 value at each trigger time.
+    """
+    T1 = np.atleast_1d(T1)
+    # M(t) = M0 (1 − 2exp(−t/T1))
+    # Output shape (N, M) where N is the number of T1 values
+    # and M is the number of time points
+    return M0 * (1.0 - 2.0 * np.exp(-np.outer(1.0 / T1, t_LL)))
 
 
 def read_dicom_trigger_times(dicomfile: Path) -> np.ndarray:
@@ -132,22 +180,45 @@ def compute_looklocker_t1_array(data: np.ndarray, time_s: np.ndarray, t1_roof: f
     voxel_mask = np.array(np.where(valid_voxels)).T
     d_masked = np.array([data_normalized[i, j, k] for (i, j, k) in voxel_mask])
 
-    logger.debug(f"Starting fitting for {len(d_masked)} voxels.")
-    with tqdm.tqdm(total=len(d_masked), desc="Fitting Look-Locker Voxels") as pbar:
-        voxel_fitter = partial(fit_voxel, time_s=time_s, pbar=pbar)
-        vfunc = np.vectorize(voxel_fitter, signature="(n) -> (3)")
-        fitted_coefficients = vfunc(m=d_masked)
-
-    x2 = fitted_coefficients[:, 1]
-    x3 = fitted_coefficients[:, 2]
-
     i, j, k = voxel_mask.T
     t1map = np.nan * np.zeros_like(data[..., 0])
 
-    # Calculate T1 in ms. Formula: T1 = (x2 / x3)^2 * 1000
-    t1map[i, j, k] = (x2 / x3) ** 2 * 1000.0
+    t1map[i, j, k] = estimate_LL_T1(d_masked, time_s)
 
     return np.minimum(t1map, t1_roof)
+
+
+def estimate_LL_T1(data: np.ndarray, time_s: np.ndarray) -> np.ndarray:
+    """Estimates T1 values from normalized Look-Locker signal time series using voxel-wise curve fitting.
+
+    Args:
+        data (np.ndarray): 2D array of shape (N_voxels, N_timepoints) containing normalized signal time series for each voxel.
+        time_s (np.ndarray): 1D array of trigger times in seconds.
+
+    Returns:
+        np.ndarray: 1D array of estimated T1 values for each voxel in milliseconds.
+
+    Notes:
+        - The function fits the theoretical Look-Locker model to each voxel's time series using Levenberg-Marquardt optimization.
+        - Initial parameter guesses are based on the location of the signal minimum.
+        - Voxels that fail to fit or produce non-physical parameters are assigned NaN.
+    """
+    assert isinstance(data, np.ndarray) and data.ndim == 2, (
+        f"Data should be a 2D array of shape (N_voxels, N_timepoints), got {data.shape}"
+    )
+    msg = f"Time dimension of data {data.shape[1]} does not match length of time_s {len(time_s)}"
+    assert data.shape[1] == len(time_s), msg
+
+    logger.debug(f"Starting fitting for {len(data)} voxels.")
+    with tqdm.tqdm(total=len(data), desc="Fitting Look-Locker Voxels") as pbar:
+        voxel_fitter = partial(fit_voxel, time_s=time_s, pbar=pbar)
+        vfunc = np.vectorize(voxel_fitter, signature="(n) -> (3)")
+        fitted_coefficients = vfunc(m=data)
+
+    x2 = fitted_coefficients[:, 1]
+    x3 = fitted_coefficients[:, 2]
+    # Calculate T1 in ms. Formula: T1 = (x2 / x3)^2 * 1000
+    return (x2 / x3) ** 2 * 1000.0
 
 
 def looklocker_t1map_postprocessing(
@@ -222,6 +293,87 @@ def looklocker_t1map_postprocessing(
         logger.info("No output path provided, returning post-processed Look-Locker T1 map as MRIData object.")
 
     return processed_T1map
+
+
+def voxel_fit_function(t: np.ndarray, x1: float, x2: float, x3: float) -> np.ndarray:
+    """
+    Theoretical Look-Locker T1 recovery curve model.
+
+    Evaluates the function: f(t) = | x1 * (1 - (1 + x2^2) * exp(-x3^2 * t)) |
+
+    Args:
+        t (np.ndarray): Time array in seconds.
+        x1 (float): Amplitude scaling factor (equivalent to A).
+        x2 (float): Inversion efficiency term (used to ensure (1+x2^2) > 1).
+        x3 (float): Relaxation rate, defined as 1 / sqrt(T1*).
+
+    Returns:
+        np.ndarray: The theoretical signal magnitude at times `t`.
+    """
+    return np.abs(x1 * (1.0 - (1 + x2**2) * np.exp(-(x3**2) * t)))
+
+
+@np.errstate(divide="raise", invalid="raise", over="raise")
+def curve_fit_wrapper(f, t: np.ndarray, y: np.ndarray, p0: np.ndarray):
+    """
+    A strict wrapper around scipy.optimize.curve_fit.
+
+    Temporarily converts numpy warnings (like division by zero) and
+    scipy's OptimizeWarning into hard errors. This allows the calling
+    function to gracefully catch and handle poorly-fitting voxels
+    (e.g., by assigning them NaN) rather than silently returning bad fits.
+
+    Args:
+        f (callable): The model function, e.g., voxel_fit_function.
+        t (np.ndarray): The independent variable (time).
+        y (np.ndarray): The dependent variable (signal).
+        p0 (np.ndarray): Initial guesses for the parameters.
+
+    Returns:
+        np.ndarray: Optimal values for the parameters so that the sum of
+        the squared residuals of :code:`f(xdata, *popt) - ydata` is minimized.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", scipy.optimize.OptimizeWarning)
+        popt, _ = scipy.optimize.curve_fit(f, xdata=t, ydata=y, p0=p0, maxfev=1000)
+    return popt
+
+
+def fit_voxel(time_s: np.ndarray, m: np.ndarray, pbar=None) -> np.ndarray:
+    """
+    Fits the Look-Locker relaxation curve for a single voxel's time series.
+
+    Provides initial parameter guesses based on the location of the signal minimum
+    and attempts to fit the voxel_fit_function using Levenberg-Marquardt optimization.
+    Returns NaNs if the optimization fails or hits evaluation limits.
+
+    Args:
+        time_s (np.ndarray): 1D array of trigger times in seconds.
+        m (np.ndarray): 1D array of signal magnitudes over time for the voxel.
+        pbar: A tqdm progress bar instance (or None) to update incrementally.
+
+    Returns:
+        np.ndarray: A 3-element array containing the fitted parameters `[x1, x2, x3]`.
+        If the fit fails, returns an array of NaNs.
+    """
+    if pbar is not None:
+        pbar.update(1)
+    x1 = 1.0
+    x2 = np.sqrt(1.25)
+    T1 = time_s[np.argmin(m)] / np.log(1 + x2**2)
+    x3 = np.sqrt(1 / T1)
+    p0 = np.array((x1, x2, x3))
+    if not np.all(np.isfinite(m)):
+        return np.nan * np.zeros_like(p0)
+    try:
+        popt = curve_fit_wrapper(voxel_fit_function, time_s, m, p0)
+    except (scipy.optimize.OptimizeWarning, FloatingPointError):
+        return np.nan * np.zeros_like(p0)
+    except RuntimeError as e:
+        if "maxfev" in str(e):
+            return np.nan * np.zeros_like(p0)
+        raise e
+    return popt
 
 
 def looklocker_t1map(looklocker_input: Path, timestamps: Path, output: Path | None = None) -> MRIData:
