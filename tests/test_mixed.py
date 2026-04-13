@@ -7,6 +7,7 @@ import mritk.cli
 from mritk.mixed import (
     _extract_frame_metadata,
     compute_mixed_t1_array,
+    estimate_se_free_relaxation_time,
     extract_mixed_dicom,
     mixed_t1map,
     mixed_t1map_postprocessing,
@@ -69,6 +70,21 @@ def test_extract_frame_metadata():
     assert meta["TE"] == 10.0
     assert meta["TI"] == 150.0
     assert meta["ETL"] == 5
+
+
+def test_estimate_se_free_relaxation_time():
+    """Test the calculation for free relaxation time."""
+    TRse = 1000.0
+    TE = 10.0
+    ETL = 5
+
+    # Formula check: TRse - TE * (1 + 0.5 * (ETL - 1) / (0.5 * (ETL + 1) + 20))
+    # 1000 - 10 * (1 + 0.5 * 4 / (0.5 * 6 + 20))
+    # 1000 - 10 * (1 + 2 / 23)
+    expected = 1000.0 - 10.0 * (1.0 + 2.0 / 23.0)
+
+    result = estimate_se_free_relaxation_time(TRse, TE, ETL)
+    assert np.isclose(result, expected)
 
 
 @patch("mritk.mixed.extract_single_volume")
