@@ -17,6 +17,10 @@ parts:
     - file: "docs/hybrid.md" # About the mritk hybrid command
     - file: "docs/concentration.md" # About the mritk concentration command
 
+  - caption: Examples
+    chapters:
+    - file: "docs/roi.md" # Example of how to extract a region of interest (ROI) from an image using mritk
+
   - caption: Community
     chapters:
       - file: "CONTRIBUTING.md" # Contributing guidelines
