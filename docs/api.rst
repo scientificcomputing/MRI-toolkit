@@ -79,7 +79,7 @@ hybrid
 statistics
 ----------
 
-.. automodule:: mritk.stats
+.. automodule:: mritk.statistics
     :members:
     :inherited-members:
 
@@ -95,13 +95,5 @@ segmentation
 ------------
 
 .. automodule:: mritk.segmentation
-    :members:
-    :inherited-members:
-
-.. automodule:: mritk.segmentation.groups
-    :members:
-    :inherited-members:
-
-.. automodule:: mritk.segmentation.lookup_table
     :members:
     :inherited-members:
