@@ -23,7 +23,7 @@ from .utils import fit_voxel, mri_facemask, nan_filter_gaussian, run_dcm2niix
 logger = logging.getLogger(__name__)
 
 
-def read_dicom_trigger_times(dicomfile: Path, output: Path | None = None) -> np.ndarray:
+def read_dicom_trigger_times(dicomfile: Path) -> np.ndarray:
     """
     Extracts unique nominal cardiac trigger delay times from DICOM functional groups.
 
@@ -41,9 +41,6 @@ def read_dicom_trigger_times(dicomfile: Path, output: Path | None = None) -> np.
     all_frame_times = [
         f.CardiacSynchronizationSequence[0].NominalCardiacTriggerDelayTime for f in dcm.PerFrameFunctionalGroupsSequence
     ]
-
-    if output is not None:
-        np.savetxt(output, all_frame_times)
 
     return np.unique(all_frame_times)
 
@@ -352,7 +349,9 @@ def dispatch(args):
     if command == "dcm2ll":
         dicom_to_looklocker(args.pop("input"), args.pop("output"))
     elif command == "timestamps":
-        read_dicom_trigger_times(args.pop("input"), args.pop("output"))
+        timestamps = read_dicom_trigger_times(args.pop("input"))
+        if args.pop("output") is not None:
+            np.savetxt(args.pop("output"), timestamps)
     elif command == "t1":
         looklocker_t1map(args.pop("input"), args.pop("timestamps"), output=args.pop("output"))
     elif command == "postprocess":
