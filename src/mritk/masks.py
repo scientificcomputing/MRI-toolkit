@@ -4,10 +4,9 @@
 # Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 # Copyright (C) 2026   Simula Research Laboratory
 
-from pathlib import Path
 import argparse
-
 from collections.abc import Callable
+from pathlib import Path
 
 import numpy as np
 import skimage
@@ -176,20 +175,20 @@ def intracranial_mask(
 
     return mri_data
 
+
 def add_arguments(
     parser: argparse.ArgumentParser,
     extra_args_cb: Callable[[argparse.ArgumentParser], None] | None = None,
 ) -> None:
     subparser = parser.add_subparsers(dest="mask-command", help="Commands for generating mask")
 
-    csf_mask_parser = subparser.add_parser(
-        "csf", help="Compute CSF mask", formatter_class=parser.formatter_class
-    )
+    csf_mask_parser = subparser.add_parser("csf", help="Compute CSF mask", formatter_class=parser.formatter_class)
     csf_mask_parser.add_argument("-i", "--input", type=Path, help="Path to the input NIfTI image")
     csf_mask_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the resulting mask")
-    csf_mask_parser.add_argument("--connectivity", type=int, default=2, help="Maximum connectivity distance to evaluate contiguous islands")
+    csf_mask_parser.add_argument(
+        "--connectivity", type=int, default=2, help="Maximum connectivity distance to evaluate contiguous islands"
+    )
     csf_mask_parser.add_argument("--use-li", type=bool, default=False, help="If true, uses Li thresholding")
-
 
     intracranial_mask_parser = subparser.add_parser(
         "intracranial", help="Compute intracranial mask", formatter_class=parser.formatter_class
@@ -206,8 +205,12 @@ def add_arguments(
 def dispatch(args):
     command = args.pop("mask-command")
     if command == "csf":
-        csf_mask(input=args.pop("input"), output=args.pop("output"), connectivity=args.pop("connectivity"), use_li=args.pop("use_li"))
+        csf_mask(
+            input=args.pop("input"), output=args.pop("output"), connectivity=args.pop("connectivity"), use_li=args.pop("use_li")
+        )
     elif command == "intracranial":
-        intracranial_mask(csf_mask_path=args.pop("csf_mask_path"), segmentation_path=args.pop("segmentation_path"), output=args.pop("output"))
+        intracranial_mask(
+            csf_mask_path=args.pop("csf_mask_path"), segmentation_path=args.pop("segmentation_path"), output=args.pop("output")
+        )
     else:
         raise ValueError(f"Unknown mask command: {command}")

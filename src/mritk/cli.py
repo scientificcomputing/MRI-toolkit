@@ -9,7 +9,7 @@ from typing import Optional, Sequence
 from rich.logging import RichHandler
 from rich_argparse import RichHelpFormatter
 
-from . import concentration, datasets, masks, hybrid, info, looklocker, mixed, napari, r1, show, statistics
+from . import concentration, datasets, hybrid, info, looklocker, masks, mixed, napari, r1, show, statistics
 
 
 def version_info():
