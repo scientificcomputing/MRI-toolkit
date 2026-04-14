@@ -41,6 +41,7 @@ def read_dicom_trigger_times(dicomfile: Path) -> np.ndarray:
     all_frame_times = [
         f.CardiacSynchronizationSequence[0].NominalCardiacTriggerDelayTime for f in dcm.PerFrameFunctionalGroupsSequence
     ]
+
     return np.unique(all_frame_times)
 
 
@@ -310,6 +311,12 @@ def add_arguments(
     dicom_parser.add_argument("-i", "--input", type=Path, help="Path to the input Look-Locker DICOM file")
     dicom_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the converted .nii.gz file")
 
+    ll_timestamps = subparser.add_parser(
+        "timestamps", help="Read timestamps from DICOM data", formatter_class=parser.formatter_class
+    )
+    ll_timestamps.add_argument("-i", "--input", type=Path, help="Path to the input Look-Locker DICOM file")
+    ll_timestamps.add_argument("-o", "--output", type=Path, help="Desired output path for the generated file")
+
     ll_t1 = subparser.add_parser("t1", help="Generate a T1 map from Look-Locker data", formatter_class=parser.formatter_class)
     ll_t1.add_argument("-i", "--input", type=Path, help="Path to the 4D Look-Locker NIfTI file")
     ll_t1.add_argument("-t", "--timestamps", type=Path, help="Path to the text file containing trigger delay times (in ms)")
@@ -336,12 +343,17 @@ def add_arguments(
         extra_args_cb(dicom_parser)
         extra_args_cb(ll_t1)
         extra_args_cb(ll_post)
+        extra_args_cb(ll_timestamps)
 
 
 def dispatch(args):
     command = args.pop("looklocker-command")
     if command == "dcm2ll":
         dicom_to_looklocker(args.pop("input"), args.pop("output"))
+    elif command == "timestamps":
+        timestamps = read_dicom_trigger_times(args.pop("input"))
+        if args.pop("output") is not None:
+            np.savetxt(args.pop("output"), timestamps)
     elif command == "t1":
         looklocker_t1map(args.pop("input"), args.pop("timestamps"), output=args.pop("output"))
     elif command == "postprocess":
