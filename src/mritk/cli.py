@@ -9,7 +9,7 @@ from typing import Optional, Sequence
 from rich.logging import RichHandler
 from rich_argparse import RichHelpFormatter
 
-from . import concentration, datasets, hybrid, info, looklocker, mixed, napari, r1, show, statistics
+from . import concentration, datasets, masks, hybrid, info, looklocker, mixed, napari, r1, show, statistics
 
 
 def version_info():
@@ -80,6 +80,11 @@ def setup_parser():
     )
     looklocker.add_arguments(looklocker_parser, extra_args_cb=add_extra_arguments)
 
+    masks_parser = subparsers.add_parser(
+        "mask", help="Generate CSF and intracranial masks.", formatter_class=parser.formatter_class
+    )
+    masks.add_arguments(masks_parser, extra_args_cb=add_extra_arguments)
+
     hybrid_parser = subparsers.add_parser(
         "hybrid", help="Generate a hybrid T1 map by merging Look-Locker and Mixed maps.", formatter_class=parser.formatter_class
     )
@@ -139,6 +144,8 @@ def dispatch(parser: argparse.ArgumentParser, argv: Optional[Sequence[str]] = No
             napari.dispatch(args)
         elif command == "looklocker":
             looklocker.dispatch(args)
+        elif command == "mask":
+            masks.dispatch(args)
         elif command == "hybrid":
             hybrid.dispatch(args)
         elif command == "mixed":

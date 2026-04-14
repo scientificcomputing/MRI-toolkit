@@ -5,6 +5,9 @@
 # Copyright (C) 2026   Simula Research Laboratory
 
 from pathlib import Path
+import argparse
+
+from collections.abc import Callable
 
 import numpy as np
 import skimage
@@ -39,7 +42,7 @@ def largest_island(mask: np.ndarray, connectivity: int = 1) -> np.ndarray:
     return newmask == regions[0].label
 
 
-def create_csf_mask(
+def compute_csf_mask_array(
     vol: np.ndarray,
     connectivity: int | None = 2,
     use_li: bool = False,
@@ -101,7 +104,7 @@ def csf_mask(
         AssertionError: If the resulting mask contains no voxels.
     """
     input_vol = MRIData.from_file(input, dtype=np.single)
-    mask = create_csf_mask(input_vol.data, connectivity, use_li)
+    mask = compute_csf_mask_array(input_vol.data, connectivity, use_li)
 
     assert np.max(mask) > 0, "Masking failed, no voxels in mask"
 
@@ -172,3 +175,39 @@ def intracranial_mask(
         mri_data.save(output, dtype=np.uint8)
 
     return mri_data
+
+def add_arguments(
+    parser: argparse.ArgumentParser,
+    extra_args_cb: Callable[[argparse.ArgumentParser], None] | None = None,
+) -> None:
+    subparser = parser.add_subparsers(dest="mask-command", help="Commands for generating mask")
+
+    csf_mask_parser = subparser.add_parser(
+        "csf", help="Compute CSF mask", formatter_class=parser.formatter_class
+    )
+    csf_mask_parser.add_argument("-i", "--input", type=Path, help="Path to the input NIfTI image")
+    csf_mask_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the resulting mask")
+    csf_mask_parser.add_argument("--connectivity", type=int, default=2, help="Maximum connectivity distance to evaluate contiguous islands")
+    csf_mask_parser.add_argument("--use-li", type=bool, default=False, help="If true, uses Li thresholding")
+
+
+    intracranial_mask_parser = subparser.add_parser(
+        "intracranial", help="Compute intracranial mask", formatter_class=parser.formatter_class
+    )
+    intracranial_mask_parser.add_argument("--csf-mask-path", type=Path, help="Path to the CSF mask NIfTI file")
+    intracranial_mask_parser.add_argument("--segmentation-path", type=Path, help="Path to the brain segmentation NIfTI file")
+    intracranial_mask_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the resulting mask")
+
+    if extra_args_cb is not None:
+        extra_args_cb(csf_mask_parser)
+        extra_args_cb(intracranial_mask_parser)
+
+
+def dispatch(args):
+    command = args.pop("mask-command")
+    if command == "csf":
+        csf_mask(input=args.pop("input"), output=args.pop("output"), connectivity=args.pop("connectivity"), use_li=args.pop("use_li"))
+    elif command == "intracranial":
+        intracranial_mask(csf_mask_path=args.pop("csf_mask_path"), segmentation_path=args.pop("segmentation_path"), output=args.pop("output"))
+    else:
+        raise ValueError(f"Unknown mask command: {command}")
