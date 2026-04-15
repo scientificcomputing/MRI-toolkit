@@ -81,11 +81,7 @@ def compute_csf_mask_array(
     return binary
 
 
-def csf_mask(
-    input: Path,
-    connectivity: int | None = 2,
-    use_li: bool = False
-) -> MRIData:
+def csf_mask(input: Path, connectivity: int | None = 2, use_li: bool = False) -> MRIData:
     """
     I/O wrapper for generating and saving a CSF mask from a NIfTI file.
 
@@ -138,10 +134,7 @@ def compute_intracranial_mask_array(csf_mask_array: np.ndarray, segmentation_arr
     return ~opened_background
 
 
-def intracranial_mask(
-    csf_mask_path: Path,
-    segmentation_path: Path
-) -> MRIData:
+def intracranial_mask(csf_mask_path: Path, segmentation_path: Path) -> MRIData:
     """
     I/O wrapper for generating and saving an intracranial mask from NIfTI files.
 
@@ -199,9 +192,11 @@ def dispatch(args):
     if command == "csf":
         csf_mask_data = csf_mask(input=args.pop("input"), connectivity=args.pop("connectivity"), use_li=args.pop("use_li"))
         if args.pop("output") is not None:
-           csf_mask_data.save(args.pop("output"), dtype=np.uint8)
+            csf_mask_data.save(args.pop("output"), dtype=np.uint8)
     elif command == "intracranial":
-        intracranial_mask_data = intracranial_mask(csf_mask_path=args.pop("csf_mask_path"), segmentation_path=args.pop("segmentation_path"))
+        intracranial_mask_data = intracranial_mask(
+            csf_mask_path=args.pop("csf_mask_path"), segmentation_path=args.pop("segmentation_path")
+        )
         if args.pop("output") is not None:
             intracranial_mask_data.save(args.pop("output"), dtype=np.uint8)
     else:
