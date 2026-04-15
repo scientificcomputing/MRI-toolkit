@@ -8,7 +8,7 @@ Copyright (C) 2026   Simula Research Laboratory
 import nibabel as nib
 import numpy as np
 
-from mritk.masks import compute_intracranial_mask_array, create_csf_mask, csf_mask, intracranial_mask, largest_island
+from mritk.masks import compute_intracranial_mask_array, compute_csf_mask_array, csf_mask, intracranial_mask, largest_island
 
 
 def test_largest_island():
@@ -38,7 +38,7 @@ def test_largest_island_empty():
     assert result.dtype == bool
 
 
-def test_create_csf_mask_li():
+def test_compute_csf_mask_array_li():
     """Test generating a CSF mask using Li thresholding and largest island extraction."""
     # Create a 10x10x10 mock volume
     vol = np.zeros((10, 10, 10))
@@ -47,7 +47,7 @@ def test_create_csf_mask_li():
     # Add a smaller disconnected "noise" island
     vol[0, 0, 0] = 100.0
 
-    mask = create_csf_mask(vol, connectivity=1, use_li=True)
+    mask = compute_csf_mask_array(vol, connectivity=1, use_li=True)
 
     # Validates that the primary island is kept
     assert mask[5, 5, 5] == np.True_
@@ -57,7 +57,7 @@ def test_create_csf_mask_li():
     assert mask[1, 1, 1] == np.False_
 
 
-def test_create_csf_mask_yen():
+def test_compute_csf_mask_array_yen():
     """Test generating a CSF mask using Yen thresholding on histogram data."""
     # Ensure reproducible random distributions across Python versions
     np.random.seed(42)
@@ -71,7 +71,7 @@ def test_create_csf_mask_yen():
     # The rest of the island will safely remain to populate the histogram.
     vol[4:10, 4:10, 4:10] = np.random.uniform(100, 150, (6, 6, 6))
 
-    mask = create_csf_mask(vol, connectivity=2, use_li=False)
+    mask = compute_csf_mask_array(vol, connectivity=2, use_li=False)
 
     # Check that the center of the island is identified
     assert bool(mask[7, 7, 7]) is True
