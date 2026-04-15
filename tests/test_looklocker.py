@@ -55,12 +55,12 @@ def test_looklocker_t1map(tmp_path, mri_data_dir: Path, gonzo_roi):
         f"Number of voxels with differences > 1e-12: {n_differences_eps} out "
         f"of {arr1.size} ({fraction_differences_eps * 100:.2f}%)"
     )
-    assert fraction_differences_eps < 0.1, "More than 1% of voxels differ by more than 1e-12"
+    assert fraction_differences_eps < 0.1, "More than 10% of voxels differ by more than 1e-12"
 
     n_differences_1 = np.sum(np.abs(arr1 - arr2) > 1)
     fraction_differences_1 = n_differences_1 / arr1.size
     print(f"Number of voxels with differences > 1: {n_differences_1} out of {arr1.size} ({fraction_differences_1 * 100:.2f}%)")
-    assert fraction_differences_1 < 0.05, "More than 1% of voxels differ by more than 1"
+    assert fraction_differences_1 < 0.05, "More than 5% of voxels differ by more than 1"
 
     # mritk.testing.compare_nifti_arrays(t1_arr, v_ref, data_tolerance=1e-12)
 
