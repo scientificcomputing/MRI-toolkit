@@ -134,7 +134,7 @@ def compute_intracranial_mask_array(csf_mask_array: np.ndarray, segmentation_arr
     return ~opened_background
 
 
-def intracranial_mask(csf_mask_path: Path, segmentation_path: Path) -> MRIData:
+def intracranial_mask(csf_segmentation_path: Path, segmentation_path: Path) -> MRIData:
     """
     I/O wrapper for generating and saving an intracranial mask from NIfTI files.
 
@@ -142,14 +142,14 @@ def intracranial_mask(csf_mask_path: Path, segmentation_path: Path) -> MRIData:
     delegates the array computation.
 
     Args:
-        csf_mask_path (Path): Path to the CSF mask NIfTI file.
+        csf_segmentation_path (Path): Path to the CSF segmentation NIfTI file.
         segmentation_path (Path): Path to the brain segmentation NIfTI file.
         output (Optional[Path], optional): Path to save the resulting mask. Defaults to None.
 
     Returns:
         MRIData: An MRIData object containing the intracranial mask.
     """
-    input_csf_mask = MRIData.from_file(csf_mask_path, dtype=bool)
+    input_csf_mask = MRIData.from_file(csf_segmentation_path, dtype=bool)
     segmentation_data = MRIData.from_file(segmentation_path, dtype=bool)
 
     # Validate spatial alignment before array operations
@@ -168,17 +168,19 @@ def add_arguments(
     subparser = parser.add_subparsers(dest="mask-command", help="Commands for generating mask")
 
     csf_mask_parser = subparser.add_parser("csf", help="Compute CSF mask", formatter_class=parser.formatter_class)
-    csf_mask_parser.add_argument("-i", "--input", type=Path, help="Path to the input NIfTI image")
+    csf_mask_parser.add_argument("-i", "--input", type=Path, help="Path to the input NIfTI image - usually a T2-weighted")
     csf_mask_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the resulting mask")
     csf_mask_parser.add_argument(
         "--connectivity", type=int, default=2, help="Maximum connectivity distance to evaluate contiguous islands"
     )
-    csf_mask_parser.add_argument("--use-li", type=bool, default=False, help="If true, uses Li thresholding")
+    csf_mask_parser.add_argument(
+        "--use-li", action=argparse.BooleanOptionalAction, default=False, help="--use-li: Li thresholding, --no-use-li: Yen thresholding"
+    )
 
     intracranial_mask_parser = subparser.add_parser(
         "intracranial", help="Compute intracranial mask", formatter_class=parser.formatter_class
     )
-    intracranial_mask_parser.add_argument("--csf-mask-path", type=Path, help="Path to the CSF mask NIfTI file")
+    intracranial_mask_parser.add_argument("--csf-segmentation-path", type=Path, help="Path to the CSF segmentation NIfTI file")
     intracranial_mask_parser.add_argument("--segmentation-path", type=Path, help="Path to the brain segmentation NIfTI file")
     intracranial_mask_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the resulting mask")
 
@@ -191,13 +193,11 @@ def dispatch(args):
     command = args.pop("mask-command")
     if command == "csf":
         csf_mask_data = csf_mask(input=args.pop("input"), connectivity=args.pop("connectivity"), use_li=args.pop("use_li"))
-        if args.pop("output") is not None:
-            csf_mask_data.save(args.pop("output"), dtype=np.uint8)
+        csf_mask_data.save(args.pop("output"), dtype=np.uint8)
     elif command == "intracranial":
         intracranial_mask_data = intracranial_mask(
-            csf_mask_path=args.pop("csf_mask_path"), segmentation_path=args.pop("segmentation_path")
+            csf_segmentation_path=args.pop("csf_segmentation_path"), segmentation_path=args.pop("segmentation_path")
         )
-        if args.pop("output") is not None:
-            intracranial_mask_data.save(args.pop("output"), dtype=np.uint8)
+        intracranial_mask_data.save(args.pop("output"), dtype=np.uint8)
     else:
         raise ValueError(f"Unknown mask command: {command}")
