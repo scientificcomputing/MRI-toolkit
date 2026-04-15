@@ -8,7 +8,7 @@ Copyright (C) 2026   Simula Research Laboratory
 import nibabel as nib
 import numpy as np
 
-from mritk.masks import compute_intracranial_mask_array, compute_csf_mask_array, csf_mask, intracranial_mask, largest_island
+from mritk.masks import compute_csf_mask_array, compute_intracranial_mask_array, csf_mask, intracranial_mask, largest_island
 
 
 def test_largest_island():
