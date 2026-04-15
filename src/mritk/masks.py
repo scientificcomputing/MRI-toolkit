@@ -174,7 +174,10 @@ def add_arguments(
         "--connectivity", type=int, default=2, help="Maximum connectivity distance to evaluate contiguous islands"
     )
     csf_mask_parser.add_argument(
-        "--use-li", action=argparse.BooleanOptionalAction, default=False, help="--use-li: Li thresholding, --no-use-li: Yen thresholding"
+        "--use-li",
+        action=argparse.BooleanOptionalAction,
+        default=False,
+        help="--use-li: Li thresholding, --no-use-li: Yen thresholding",
     )
 
     intracranial_mask_parser = subparser.add_parser(

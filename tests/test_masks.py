@@ -5,10 +5,11 @@ Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 Copyright (C) 2026   Simula Research Laboratory
 """
 
-import nibabel as nib
-import numpy as np
 from pathlib import Path
 from unittest.mock import patch
+
+import nibabel as nib
+import numpy as np
 
 import mritk.cli
 from mritk.masks import compute_csf_mask_array, compute_intracranial_mask_array, csf_mask, intracranial_mask, largest_island
@@ -153,12 +154,14 @@ def test_intracranial_mask_io(tmp_path):
     # Verify the output data shape matches what we expect
     assert result.data.shape == (10, 10, 10)
 
+
 @patch("mritk.masks.csf_mask")
 def test_dispatch_csf_mask(mock_csf_mask):
     """Test the CLI dispatch for the CSF mask command."""
     mritk.cli.main(["mask", "csf", "-i", "input.nii.gz", "--output", "mock_out.nii.gz", "--use-li", "--connectivity", "2"])
 
     mock_csf_mask.assert_called_once_with(input=Path("input.nii.gz"), connectivity=2, use_li=True)
+
 
 @patch("mritk.masks.intracranial_mask")
 def test_dispatch_intracranial_mask(mock_intracranial_mask):
@@ -177,9 +180,9 @@ def test_dispatch_intracranial_mask(mock_intracranial_mask):
     )
 
     mock_intracranial_mask.assert_called_once_with(
-        csf_segmentation_path=Path("csf_segmentation.nii.gz"),
-        segmentation_path=Path("segmentation.nii.gz")
+        csf_segmentation_path=Path("csf_segmentation.nii.gz"), segmentation_path=Path("segmentation.nii.gz")
     )
+
 
 def test_csf_mask(tmp_path, mri_data_dir: Path):
     input_T2w_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/registered/sub-01_ses-01_T2w_registered.nii.gz"
