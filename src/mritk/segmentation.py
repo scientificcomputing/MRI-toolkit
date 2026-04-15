@@ -124,12 +124,12 @@ class Segmentation(MRIData):
         """An array containing the unique numerical labels of all present ROIs."""
         return self.rois
 
-    def get_roi_labels(self, rois: npt.NDArray[np.int_] | None = None) -> pd.DataFrame:
+    def get_roi_labels(self, rois: npt.NDArray[np.int32] | None = None) -> pd.DataFrame:
         """
         Retrieves a descriptive mapping for a specified set of ROIs.
 
         Args:
-            rois (Optional[npt.NDArray[np.int_]], optional): Array of numerical ROIs to look up.
+            rois (Optional[npt.NDArray[np.int32]], optional): Array of numerical ROIs to look up.
                 If None, retrieves labels for all ROIs currently present in the volume. Defaults to None.
 
         Returns:
@@ -192,12 +192,12 @@ class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
     the base FreeSurfer anatomical label (modulus 10000).
     """
 
-    def get_roi_labels(self, rois: npt.NDArray[np.int_] | None = None) -> pd.DataFrame:
+    def get_roi_labels(self, rois: npt.NDArray[np.int32] | None = None) -> pd.DataFrame:
         """
         Retrieves descriptive mappings including the augmented tissue type classifications.
 
         Args:
-            rois (Optional[npt.NDArray[np.int_]], optional): Array of numerical ROIs to look up.
+            rois (Optional[npt.NDArray[np.int32]], optional): Array of numerical ROIs to look up.
                 If None, retrieves labels for all ROIs currently present. Defaults to None.
 
         Returns:
@@ -220,7 +220,7 @@ class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
             how="outer",
         ).drop(columns=["FreeSurfer_ROI"])[["ROI", self._label_name, "tissue_type"]]
 
-    def get_tissue_type(self, rois: npt.NDArray[np.int_] | None = None) -> pd.DataFrame:
+    def get_tissue_type(self, rois: npt.NDArray[np.int32] | None = None) -> pd.DataFrame:
         """
         Determines the tissue type based on the numerical ranges of the ROI labels.
 
@@ -229,7 +229,7 @@ class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
         Labels >= 20000 are classified as "Dura".
 
         Args:
-            rois (Optional[npt.NDArray[np.int_]], optional): Array of numerical ROIs to evaluate.
+            rois (Optional[npt.NDArray[np.int32]], optional): Array of numerical ROIs to evaluate.
                 If None, evaluates all ROIs currently present. Defaults to None.
 
         Returns:
