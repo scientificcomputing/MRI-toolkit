@@ -125,7 +125,6 @@ def test_intracranial_mask_io(tmp_path):
     """Test the I/O wrapper for Intracranial masking by writing actual temporary NIfTI files."""
     csf_path = tmp_path / "csf.nii.gz"
     seg_path = tmp_path / "seg.nii.gz"
-    out_path = tmp_path / "ic_out.nii.gz"
 
     # Create standard identity affine matrices to satisfy assert_same_space
     affine = np.eye(4)
