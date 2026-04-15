@@ -113,7 +113,8 @@ def test_csf_mask_io(tmp_path):
     nii = nib.Nifti1Image(data, np.eye(4))
     nib.save(nii, in_path)
 
-    result = csf_mask(input=in_path, use_li=True, output=out_path)
+    result = csf_mask(input=in_path, use_li=True)
+    result.save(out_path, dtype=np.uint8)
 
     # Verify the file was physically saved to the filesystem
     assert out_path.exists()
@@ -125,6 +126,7 @@ def test_intracranial_mask_io(tmp_path):
     """Test the I/O wrapper for Intracranial masking by writing actual temporary NIfTI files."""
     csf_path = tmp_path / "csf.nii.gz"
     seg_path = tmp_path / "seg.nii.gz"
+    out_path = tmp_path / "ic_out.nii.gz"
 
     # Create standard identity affine matrices to satisfy assert_same_space
     affine = np.eye(4)
@@ -140,6 +142,9 @@ def test_intracranial_mask_io(tmp_path):
     nib.save(nib.Nifti1Image(seg_data, affine), seg_path)
 
     result = intracranial_mask(csf_mask_path=csf_path, segmentation_path=seg_path)
+    result.save(out_path, dtype=np.uint8)
 
-    # Verify output shape
+    # Verify the file was physically saved to the filesystem
+    assert out_path.exists()
+    # Verify the output data shape matches what we expect
     assert result.data.shape == (10, 10, 10)
