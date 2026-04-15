@@ -1,9 +1,11 @@
 import os
+import typing
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+import mritk
 from mritk.data import MRIData
 from mritk.segmentation import Segmentation
 
@@ -36,3 +38,33 @@ def example_values() -> MRIData:
         ]
     ).T
     return MRIData(data, affine=np.eye(4))
+
+
+class GonzoRoi(typing.NamedTuple):
+    points: np.ndarray
+    affine: np.ndarray
+    shape: tuple
+
+    def voxel_indices(self, affine: np.ndarray) -> np.ndarray:
+        return mritk.data.physical_to_voxel_indices(self.points, affine=affine)
+
+
+@pytest.fixture
+def gonzo_roi() -> GonzoRoi:
+    xs = np.linspace(0, 70, 80)
+    ys = np.linspace(0, 20, 20)
+    zs = np.linspace(-40, 90, 110)
+
+    # Create a 3D grid of points as one long vector
+    grid_x, grid_y, grid_z = np.meshgrid(xs, ys, zs, indexing="ij")
+    grid_points = np.vstack([grid_x.ravel(), grid_y.ravel(), grid_z.ravel()]).T  # Shape: (N, 3)
+    grid_shape = grid_x.shape
+
+    new_affine = np.eye(4)
+    new_affine[0, 0] = xs[1] - xs[0]
+    new_affine[1, 1] = ys[1] - ys[0]
+    new_affine[2, 2] = zs[1] - zs[0]
+    new_affine[0, 3] = xs[0]
+    new_affine[1, 3] = ys[0]
+    new_affine[2, 3] = zs[0]
+    return GonzoRoi(points=grid_points, affine=new_affine, shape=grid_shape)

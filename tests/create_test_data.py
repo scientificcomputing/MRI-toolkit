@@ -7,6 +7,8 @@ def main():
     inputdir = Path("gonzo")  # Assumes you have the Gonzo dataset downloaded here
     files = [
         "timetable/timetable.tsv",
+        "mri-dataset/mri_dataset/sub-01/ses-01/anat/sub-01_ses-01_acq-looklocker_IRT1.nii.gz",
+        "mri-dataset/mri_dataset/sub-01/ses-01/anat/sub-01_ses-01_acq-looklocker_IRT1_trigger_times.txt",
         "mri-dataset/mri_dataset/sub-01/ses-01/mixed/sub-01_ses-01_acq-mixed_SE-modulus.nii.gz",
         "mri-dataset/mri_dataset/sub-01/ses-01/mixed/sub-01_ses-01_acq-mixed_IR-corrected-real.nii.gz",
         "mri-dataset/mri_dataset/sub-01/ses-01/mixed/sub-01_ses-01_acq-mixed_meta.json",
@@ -18,6 +20,7 @@ def main():
         "mri-processed/mri_processed_data/sub-01/concentrations/sub-01_ses-02_concentration.nii.gz",
         "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-intracranial_binary.nii.gz",
         "mri-processed/mri_dataset/derivatives/sub-01/ses-01/sub-01_ses-01_acq-mixed_T1map.nii.gz",
+        "mri-processed/mri_dataset/derivatives/sub-01/ses-01/sub-01_ses-01_acq-looklocker_T1map.nii.gz",
         "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-aparc+aseg_refined.nii.gz",
         "mri-processed/mri_processed_data/sub-01/registered/sub-01_ses-01_acq-looklocker_T1map_registered.nii.gz",
     ]
