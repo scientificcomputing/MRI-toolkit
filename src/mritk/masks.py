@@ -84,8 +84,7 @@ def compute_csf_mask_array(
 def csf_mask(
     input: Path,
     connectivity: int | None = 2,
-    use_li: bool = False,
-    output: Path | None = None,
+    use_li: bool = False
 ) -> MRIData:
     """
     I/O wrapper for generating and saving a CSF mask from a NIfTI file.
@@ -108,9 +107,6 @@ def csf_mask(
     assert np.max(mask) > 0, "Masking failed, no voxels in mask"
 
     mri_data = MRIData(data=mask, affine=input_vol.affine)
-
-    if output is not None:
-        mri_data.save(output, dtype=np.uint8)
 
     return mri_data
 
@@ -144,8 +140,7 @@ def compute_intracranial_mask_array(csf_mask_array: np.ndarray, segmentation_arr
 
 def intracranial_mask(
     csf_mask_path: Path,
-    segmentation_path: Path,
-    output: Path | None = None,
+    segmentation_path: Path
 ) -> MRIData:
     """
     I/O wrapper for generating and saving an intracranial mask from NIfTI files.
@@ -169,9 +164,6 @@ def intracranial_mask(
 
     mask_data = compute_intracranial_mask_array(input_csf_mask.data, segmentation_data.data)
     mri_data = MRIData(data=mask_data, affine=segmentation_data.affine)
-
-    if output is not None:
-        mri_data.save(output, dtype=np.uint8)
 
     return mri_data
 
@@ -205,12 +197,12 @@ def add_arguments(
 def dispatch(args):
     command = args.pop("mask-command")
     if command == "csf":
-        csf_mask(
-            input=args.pop("input"), output=args.pop("output"), connectivity=args.pop("connectivity"), use_li=args.pop("use_li")
-        )
+        csf_mask_data = csf_mask(input=args.pop("input"), connectivity=args.pop("connectivity"), use_li=args.pop("use_li"))
+        if args.pop("output") is not None:
+           csf_mask_data.save(args.pop("output"), dtype=np.uint8)
     elif command == "intracranial":
-        intracranial_mask(
-            csf_mask_path=args.pop("csf_mask_path"), segmentation_path=args.pop("segmentation_path"), output=args.pop("output")
-        )
+        intracranial_mask_data = intracranial_mask(csf_mask_path=args.pop("csf_mask_path"), segmentation_path=args.pop("segmentation_path"))
+        if args.pop("output") is not None:
+            intracranial_mask_data.save(args.pop("output"), dtype=np.uint8)
     else:
         raise ValueError(f"Unknown mask command: {command}")

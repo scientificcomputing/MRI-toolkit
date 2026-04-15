@@ -140,8 +140,7 @@ def test_intracranial_mask_io(tmp_path):
     seg_data[4:6, 4:6, 4:6] = 1.0
     nib.save(nib.Nifti1Image(seg_data, affine), seg_path)
 
-    result = intracranial_mask(csf_mask_path=csf_path, segmentation_path=seg_path, output=out_path)
+    result = intracranial_mask(csf_mask_path=csf_path, segmentation_path=seg_path)
 
-    # Verify output file creation
-    assert out_path.exists()
+    # Verify output shape
     assert result.data.shape == (10, 10, 10)
