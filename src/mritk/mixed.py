@@ -18,7 +18,7 @@ import scipy.interpolate
 import skimage
 
 from .data import MRIData, change_of_coordinates_map, data_reorientation
-from .masks import create_csf_mask
+from .masks import compute_csf_mask_array
 from .utils import VOLUME_LABELS, run_dcm2niix
 
 logger = logging.getLogger(__name__)
@@ -294,7 +294,7 @@ def mixed_t1map_postprocessing(SE_nii_path: Path, T1_path: Path, output: Path | 
     se_mri = MRIData.from_file(SE_nii_path, dtype=np.single)
 
     logger.debug("Creating CSF mask from SE image using Li thresholding and morphological erosion.")
-    mask = create_csf_mask(se_mri.data, use_li=True)
+    mask = compute_csf_mask_array(se_mri.data, use_li=True)
     logger.debug("Performing morphological erosion on the CSF mask to reduce partial volume effects.")
     mask = skimage.morphology.erosion(mask)
 
