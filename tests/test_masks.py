@@ -5,10 +5,15 @@ Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 Copyright (C) 2026   Simula Research Laboratory
 """
 
+from pathlib import Path
+from unittest.mock import patch
+
 import nibabel as nib
 import numpy as np
 
-from mritk.masks import compute_intracranial_mask_array, create_csf_mask, csf_mask, intracranial_mask, largest_island
+import mritk.cli
+from mritk.masks import compute_csf_mask_array, compute_intracranial_mask_array, csf_mask, intracranial_mask, largest_island
+from mritk.testing import compare_nifti_images
 
 
 def test_largest_island():
@@ -38,7 +43,7 @@ def test_largest_island_empty():
     assert result.dtype == bool
 
 
-def test_create_csf_mask_li():
+def test_compute_csf_mask_array_li():
     """Test generating a CSF mask using Li thresholding and largest island extraction."""
     # Create a 10x10x10 mock volume
     vol = np.zeros((10, 10, 10))
@@ -47,7 +52,7 @@ def test_create_csf_mask_li():
     # Add a smaller disconnected "noise" island
     vol[0, 0, 0] = 100.0
 
-    mask = create_csf_mask(vol, connectivity=1, use_li=True)
+    mask = compute_csf_mask_array(vol, connectivity=1, use_li=True)
 
     # Validates that the primary island is kept
     assert mask[5, 5, 5] == np.True_
@@ -57,7 +62,7 @@ def test_create_csf_mask_li():
     assert mask[1, 1, 1] == np.False_
 
 
-def test_create_csf_mask_yen():
+def test_compute_csf_mask_array_yen():
     """Test generating a CSF mask using Yen thresholding on histogram data."""
     # Ensure reproducible random distributions across Python versions
     np.random.seed(42)
@@ -71,7 +76,7 @@ def test_create_csf_mask_yen():
     # The rest of the island will safely remain to populate the histogram.
     vol[4:10, 4:10, 4:10] = np.random.uniform(100, 150, (6, 6, 6))
 
-    mask = create_csf_mask(vol, connectivity=2, use_li=False)
+    mask = compute_csf_mask_array(vol, connectivity=2, use_li=False)
 
     # Check that the center of the island is identified
     assert bool(mask[7, 7, 7]) is True
@@ -113,7 +118,8 @@ def test_csf_mask_io(tmp_path):
     nii = nib.Nifti1Image(data, np.eye(4))
     nib.save(nii, in_path)
 
-    result = csf_mask(input=in_path, use_li=True, output=out_path)
+    result = csf_mask(input=in_path, use_li=True)
+    result.save(out_path, dtype=np.uint8)
 
     # Verify the file was physically saved to the filesystem
     assert out_path.exists()
@@ -140,8 +146,63 @@ def test_intracranial_mask_io(tmp_path):
     seg_data[4:6, 4:6, 4:6] = 1.0
     nib.save(nib.Nifti1Image(seg_data, affine), seg_path)
 
-    result = intracranial_mask(csf_mask_path=csf_path, segmentation_path=seg_path, output=out_path)
+    result = intracranial_mask(csf_segmentation_path=csf_path, segmentation_path=seg_path)
+    result.save(out_path, dtype=np.uint8)
 
-    # Verify output file creation
+    # Verify the file was physically saved to the filesystem
     assert out_path.exists()
+    # Verify the output data shape matches what we expect
     assert result.data.shape == (10, 10, 10)
+
+
+@patch("mritk.masks.csf_mask")
+def test_dispatch_csf_mask(mock_csf_mask):
+    """Test the CLI dispatch for the CSF mask command."""
+    mritk.cli.main(["mask", "csf", "-i", "input.nii.gz", "--output", "mock_out.nii.gz", "--use-li", "--connectivity", "2"])
+
+    mock_csf_mask.assert_called_once_with(input=Path("input.nii.gz"), connectivity=2, use_li=True)
+
+
+@patch("mritk.masks.intracranial_mask")
+def test_dispatch_intracranial_mask(mock_intracranial_mask):
+    """Test the CLI dispatch for the intracranial mask command."""
+    mritk.cli.main(
+        [
+            "mask",
+            "intracranial",
+            "--csf-segmentation-path",
+            "csf_segmentation.nii.gz",
+            "--segmentation-path",
+            "segmentation.nii.gz",
+            "-o",
+            "ic_mask.nii.gz",
+        ]
+    )
+
+    mock_intracranial_mask.assert_called_once_with(
+        csf_segmentation_path=Path("csf_segmentation.nii.gz"), segmentation_path=Path("segmentation.nii.gz")
+    )
+
+
+def test_csf_mask(tmp_path, mri_data_dir: Path):
+    input_T2w_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/registered/sub-01_ses-01_T2w_registered.nii.gz"
+    use_li = True
+
+    ref_output = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf_binary.nii.gz"
+    test_output = tmp_path / "output_seg-csf_binary.nii.gz"
+
+    result = csf_mask(input=input_T2w_path, use_li=use_li)
+    result.save(test_output, dtype=np.uint8)
+    compare_nifti_images(test_output, ref_output, data_tolerance=1e-12)
+
+
+def test_intracranial_mask(tmp_path, mri_data_dir: Path):
+    csf_segmentation_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf-aseg.nii.gz"
+    segmentation_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-wmparc_refined.nii.gz"
+
+    ref_output = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-intracranial_binary.nii.gz"
+    test_output = tmp_path / "output_seg-intracranial_binary.nii.gz"
+
+    result = intracranial_mask(csf_segmentation_path=csf_segmentation_path, segmentation_path=segmentation_path)
+    result.save(test_output, dtype=np.uint8)
+    compare_nifti_images(test_output, ref_output, data_tolerance=1e-12)
