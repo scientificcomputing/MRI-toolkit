@@ -9,6 +9,7 @@ import json
 import logging
 import typing
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 import nibabel
@@ -25,6 +26,111 @@ logger = logging.getLogger(__name__)
 
 
 T = typing.TypeVar("T", np.ndarray, float)
+
+
+class MetaDict(typing.TypedDict):
+    TR_SE: float
+    TI: float
+    TE: float
+    ETL: int
+
+
+@dataclass
+class Mixed:
+    """Class representing the combined Spin-Echo and Inversion-Recovery
+    acquisitions for Mixed T1 mapping.
+
+    Args:
+        SE: An MRIData object containing the Spin-Echo modulus data.
+        IR: An MRIData object containing the Inversion-Recovery corrected real data.
+        meta: A dictionary containing the sequence parameters ('TR_SE', 'TI', 'TE', 'ETL').
+    """
+
+    SE: MRIData
+    IR: MRIData
+    meta: MetaDict
+
+    @classmethod
+    def from_file(cls, se_path: Path, ir_path: Path, meta_path: Path) -> "Mixed":
+        se_mri = MRIData.from_file(se_path, dtype=np.single)
+        ir_mri = MRIData.from_file(ir_path, dtype=np.single)
+        meta = json.loads(meta_path.read_text())
+        return cls(SE=se_mri, IR=ir_mri, meta=meta)
+
+    def t1_map(self, T1_low: float = 500.0, T1_high: float = 5000.0) -> "MixedT1":
+        """Computes the T1 map from the Spin-Echo and Inversion-Recovery data using the provided sequence parameters.
+
+        This function first computes the theoretical T1 lookup table based on the sequence parameters,
+        then applies the T1 estimation to each voxel by interpolating the observed signal ratios onto the T1 grid.
+        Finally, it constructs a NIfTI image of the T1 map with the appropriate affine transformation.
+
+        Args:
+            T1_low: The lower bound for the T1 interpolation grid (in ms). Defaults to 500 ms.
+            T1_high: The upper bound for the T1 interpolation grid (in ms). Defaults to 5000 ms.
+
+        Returns:
+            MixedT1: An object containing the Spin-Echo data and the computed T1 map.
+        """
+
+        t1_volume = compute_mixed_t1_array(self.SE.data, self.IR.data, self.meta, T1_low, T1_high)
+        logger.debug(
+            f"Computed T1 volume with shape {t1_volume.shape} and T1 range ({np.nanmin(t1_volume)}, {np.nanmax(t1_volume)}) ms."
+        )
+        nii = nibabel.nifti1.Nifti1Image(t1_volume, self.IR.affine)
+        nii.set_sform(nii.affine, "scanner")
+        nii.set_qform(nii.affine, "scanner")
+        return MixedT1(SE=self.SE, T1=nii)
+
+
+@dataclass
+class MixedT1:
+    """Class representing the computed T1 map from the Mixed sequence, along with the original Spin-Echo data.
+
+    Args:
+         SE: An MRIData object containing the original Spin-Echo modulus data.
+         T1: A NIfTI image containing the computed T1 map.
+    """
+
+    SE: MRIData
+    T1: nibabel.nifti1.Nifti1Image | nibabel.nifti1.Nifti1Pair
+
+    @classmethod
+    def from_file(cls, se_path: Path, t1_path: Path) -> "MixedT1":
+        se_mri = MRIData.from_file(se_path, dtype=np.single)
+        t1_nii = nibabel.nifti1.load(t1_path)
+        return cls(SE=se_mri, T1=t1_nii)
+
+    def save(self, outpath: Path) -> None:
+        """Saves the T1 map to a NIfTI file at the specified path.
+
+        Args:
+            outpath: The path where the T1 map NIfTI file should be saved.
+        """
+        nibabel.nifti1.save(self.T1, outpath)
+
+    def postprocess(self) -> "MixedT1":
+        """Applies post-processing to the Mixed T1 map to isolate the CSF.
+
+        Because the Mixed sequence is primarily sensitive/calibrated for long T1 species
+        like fluid, this function isolates the CSF. It derives a mask dynamically from
+        the original Spin-Echo sequence using Li thresholding, erodes the mask to avoid
+        partial-voluming effects at tissue boundaries, and applies it to the T1 map.
+
+        Returns:
+            nibabel.nifti1.Nifti1Image: The masked T1 map, where all non-CSF voxels
+            have been set to NaN.
+        """
+        logger.debug("Creating CSF mask from SE image using Li thresholding and morphological erosion.")
+        mask = compute_csf_mask_array(self.SE.data, use_li=True)
+        logger.debug("Performing morphological erosion on the CSF mask to reduce partial volume effects.")
+        mask = skimage.morphology.erosion(mask)
+
+        logger.debug(f"Generated CSF mask with shape {mask.shape} and {mask.sum()} valid voxels.")
+        masked_t1map = self.T1.get_fdata(dtype=np.single)
+        masked_t1map[~mask] = np.nan
+        masked_t1map_nii = nibabel.nifti1.Nifti1Image(masked_t1map, self.T1.affine, self.T1.header)
+
+        return MixedT1(SE=self.SE, T1=masked_t1map_nii)
 
 
 def estimate_se_free_relaxation_time(TRse: float, TE: float, ETL: int) -> float:
@@ -220,100 +326,8 @@ def extract_single_volume(D: np.ndarray, frame_fg) -> MRIData:
     return MRIData(data=data, affine=affine)
 
 
-def mixed_t1map(
-    SE_nii_path: Path,
-    IR_nii_path: Path,
-    meta_path: Path,
-    T1_low: float = 500.0,
-    T1_high: float = 5000.0,
-    output: Path | None = None,
-) -> nibabel.nifti1.Nifti1Image:
-    """
-    Generates a T1 relaxation map by combining Spin-Echo (SE) and Inversion-Recovery (IR) acquisitions.
-
-    This function acts as an I/O wrapper. It loads the respective NIfTI volumes
-    and their sequence metadata (such as TR, TE, TI, and Echo Train Length),
-    and passes them to the underlying mathematical function which interpolates
-    the T1 values based on the theoretical signal ratio (IR/SE).
-
-    Args:
-        SE_nii_path (Path): Path to the Spin-Echo modulus NIfTI file.
-        IR_nii_path (Path): Path to the Inversion-Recovery corrected real NIfTI file.
-        meta_path (Path): Path to the JSON file containing the sequence parameters
-            ('TR_SE', 'TI', 'TE', 'ETL').
-        T1_low (float): Lower bound for the T1 interpolation grid (in ms). Defaults to 500 ms.
-        T1_high (float): Upper bound for the T1 interpolation grid (in ms). Defaults to 5000 ms.
-        output (Path | None, optional): Path to save the resulting T1 map NIfTI file. Defaults to None.
-
-    Returns:
-        nibabel.nifti1.Nifti1Image: The computed T1 map as a NIfTI image object,
-        with the qform/sform properly set to scanner space.
-    """
-    logger.info(f"Computing Mixed T1 map from SE image {SE_nii_path} and IR image {IR_nii_path} with metadata {meta_path}")
-    se_mri = MRIData.from_file(SE_nii_path, dtype=np.single)
-    ir_mri = MRIData.from_file(IR_nii_path, dtype=np.single)
-    meta = json.loads(meta_path.read_text())
-
-    t1_volume = compute_mixed_t1_array(se_mri.data, ir_mri.data, meta, T1_low, T1_high)
-    logger.debug(
-        f"Computed T1 volume with shape {t1_volume.shape} and T1 range ({np.nanmin(t1_volume)}, {np.nanmax(t1_volume)}) ms."
-    )
-    nii = nibabel.nifti1.Nifti1Image(t1_volume, ir_mri.affine)
-    nii.set_sform(nii.affine, "scanner")
-    nii.set_qform(nii.affine, "scanner")
-
-    if output is not None:
-        nibabel.nifti1.save(nii, output)
-        logger.info(f"Saved Mixed T1 map to {output}")
-    else:
-        logger.info("No output path provided, returning T1 map as NIfTI image object")
-
-    return nii
-
-
-def mixed_t1map_postprocessing(SE_nii_path: Path, T1_path: Path, output: Path | None = None) -> nibabel.nifti1.Nifti1Image:
-    """
-    Masks a Mixed T1 map to isolate the Cerebrospinal Fluid (CSF).
-
-    Because the Mixed sequence is primarily sensitive/calibrated for long T1 species
-    like fluid, this function isolates the CSF. It derives a mask dynamically from
-    the original Spin-Echo sequence using Li thresholding, erodes the mask to avoid
-    partial-voluming effects at tissue boundaries, and applies it to the T1 map.
-
-    Args:
-        SE_nii_path (Path): Path to the Spin-Echo NIfTI file used to derive the mask.
-        T1_path (Path): Path to the previously generated Mixed T1 map NIfTI file.
-        output (Path | None, optional): Path to save the masked T1 NIfTI file. Defaults to None.
-
-    Returns:
-        nibabel.nifti1.Nifti1Image: The masked T1 map, where all non-CSF voxels
-        have been set to NaN.
-    """
-    logger.info(f"Starting Mixed T1 map post-processing with SE image {SE_nii_path} and T1 map {T1_path}")
-    t1map_nii = nibabel.nifti1.load(T1_path)
-    se_mri = MRIData.from_file(SE_nii_path, dtype=np.single)
-
-    logger.debug("Creating CSF mask from SE image using Li thresholding and morphological erosion.")
-    mask = compute_csf_mask_array(se_mri.data, use_li=True)
-    logger.debug("Performing morphological erosion on the CSF mask to reduce partial volume effects.")
-    mask = skimage.morphology.erosion(mask)
-
-    logger.debug(f"Generated CSF mask with shape {mask.shape} and {mask.sum()} valid voxels.")
-    masked_t1map = t1map_nii.get_fdata(dtype=np.single)
-    masked_t1map[~mask] = np.nan
-    masked_t1map_nii = nibabel.nifti1.Nifti1Image(masked_t1map, t1map_nii.affine, t1map_nii.header)
-
-    if output is not None:
-        nibabel.nifti1.save(masked_t1map_nii, output)
-        logger.info(f"Saved masked T1 map to {output}")
-    else:
-        logger.info("No output path provided, returning masked T1 map as NIfTI image object")
-
-    return masked_t1map_nii
-
-
 def compute_mixed_t1_array(
-    se_data: np.ndarray, ir_data: np.ndarray, meta: dict, t1_low: float = 500.0, t1_high: float = 5000.0
+    se_data: np.ndarray, ir_data: np.ndarray, meta: MetaDict, t1_low: float = 500.0, t1_high: float = 5000.0
 ) -> np.ndarray:
     """
     Computes a Mixed T1 array from Spin-Echo and Inversion-Recovery volumes using a lookup table.
@@ -321,7 +335,7 @@ def compute_mixed_t1_array(
     Args:
         se_data (np.ndarray): 3D numpy array of the Spin-Echo modulus data.
         ir_data (np.ndarray): 3D numpy array of the Inversion-Recovery corrected real data.
-        meta (dict): Dictionary containing sequence parameters ('TR_SE', 'TI', 'TE', 'ETL').
+        meta (MetaDict): Dictionary containing sequence parameters ('TR_SE', 'TI', 'TE', 'ETL').
         t1_low (float): Lower bound for T1 generation grid. Defaults to 500 ms.
         t1_high (float): Upper bound for T1 generation grid. Defaults to 5000 ms.
 
@@ -553,15 +567,27 @@ def dispatch(args):
     if command == "dcm2mixed":
         dicom_to_mixed(dcmpath=args.pop("input"), outpath=args.pop("output"), subvolumes=args.pop("subvolumes"))
     elif command == "t1":
-        mixed_t1map(
-            SE_nii_path=args.pop("se"),
-            IR_nii_path=args.pop("ir"),
+        nii = Mixed.from_file(
+            se_path=args.pop("se"),
+            ir_path=args.pop("ir"),
             meta_path=args.pop("meta"),
+        ).t1_map(
             T1_low=args.pop("t1_low"),
             T1_high=args.pop("t1_high"),
-            output=args.pop("output"),
         )
+        output = args.pop("output")
+        if output is not None:
+            nii.save(output)
+            logger.info(f"Saved Mixed T1 map to {output}")
+
     elif command == "postprocess":
-        mixed_t1map_postprocessing(SE_nii_path=args.pop("se"), T1_path=args.pop("t1"), output=args.pop("output"))
+        nii = MixedT1.from_file(
+            se_path=args.pop("se"),
+            t1_path=args.pop("t1"),
+        ).postprocess()
+        output = args.pop("output")
+        if output is not None:
+            nii.save(output)
+            logger.info(f"Saved masked Mixed T1 map to {output}")
     else:
         raise ValueError(f"Unknown command: {command}")
