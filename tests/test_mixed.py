@@ -5,11 +5,12 @@ import numpy as np
 
 import mritk.cli
 from mritk.mixed import (
+    MetaDict,
+    Mixed,
     _extract_frame_metadata,
     compute_mixed_t1_array,
+    estimate_se_free_relaxation_time,
     extract_mixed_dicom,
-    mixed_t1map,
-    mixed_t1map_postprocessing,
 )
 from mritk.testing import compare_nifti_images
 from mritk.utils import VOLUME_LABELS
@@ -21,16 +22,16 @@ def test_mixed_t1map(tmp_path, mri_data_dir: Path):
     meta_path = mri_data_dir / "mri-dataset/mri_dataset/sub-01" / "ses-01/mixed/sub-01_ses-01_acq-mixed_meta.json"
 
     ref_output = mri_data_dir / "mri-processed/mri_dataset/derivatives/sub-01" / "ses-01/sub-01_ses-01_acq-mixed_T1map.nii.gz"
-    test_output_raw = tmp_path / "output_acq-mixed_T1map_raw.nii.gz"
+
     test_output = tmp_path / "output_acq-mixed_T1map.nii.gz"
 
     T1_low = 100
     T1_high = 10000
 
-    mixed_t1map(
-        SE_nii_path=SE_path, IR_nii_path=IR_path, meta_path=meta_path, T1_low=T1_low, T1_high=T1_high, output=test_output_raw
-    )
-    mixed_t1map_postprocessing(SE_nii_path=SE_path, T1_path=test_output_raw, output=test_output)
+    mixed = Mixed.from_file(se_path=SE_path, ir_path=IR_path, meta_path=meta_path)
+    t1_map = mixed.t1_map(T1_low=T1_low, T1_high=T1_high)
+    t1_post = t1_map.postprocess()
+    t1_post.save(test_output)
 
     compare_nifti_images(test_output, ref_output, data_tolerance=1e-12)
 
@@ -41,7 +42,7 @@ def test_compute_mixed_t1_array():
     # IR signals at varying levels
     ir_data = np.array([[[-500.0, 500.0]]])
 
-    meta = {"TR_SE": 1000.0, "TI": 100.0, "TE": 10.0, "ETL": 5}
+    meta: MetaDict = {"TR_SE": 1000.0, "TI": 100.0, "TE": 10.0, "ETL": 5}
 
     t1_low = 100.0
     t1_high = 3000.0
@@ -69,6 +70,21 @@ def test_extract_frame_metadata():
     assert meta["TE"] == 10.0
     assert meta["TI"] == 150.0
     assert meta["ETL"] == 5
+
+
+def test_estimate_se_free_relaxation_time():
+    """Test the calculation for free relaxation time."""
+    TRse = 1000.0
+    TE = 10.0
+    ETL = 5
+
+    # Formula check: TRse - TE * (1 + 0.5 * (ETL - 1) / (0.5 * (ETL + 1) + 20))
+    # 1000 - 10 * (1 + 0.5 * 4 / (0.5 * 6 + 20))
+    # 1000 - 10 * (1 + 2 / 23)
+    expected = 1000.0 - 10.0 * (1.0 + 2.0 / 23.0)
+
+    result = estimate_se_free_relaxation_time(TRse, TE, ETL)
+    assert np.isclose(result, expected)
 
 
 @patch("mritk.mixed.extract_single_volume")
@@ -150,8 +166,8 @@ def test_dispatch_dcm2mixed_explicit_subvolumes(mock_dicom_to_mixed):
     )
 
 
-@patch("mritk.mixed.mixed_t1map")
-def test_dispatch_mixed_t1(mock_mixed_t1map):
+@patch("mritk.mixed.Mixed")
+def test_dispatch_mixed_t1(mock_mixed):
     """Test the t1 generation command checking types and defaults."""
 
     mritk.cli.main(
@@ -170,22 +186,19 @@ def test_dispatch_mixed_t1(mock_mixed_t1map):
         ]
     )
 
-    mock_mixed_t1map.assert_called_once_with(
-        SE_nii_path=Path("se_modulus.nii.gz"),
-        IR_nii_path=Path("ir_real.nii.gz"),
-        meta_path=Path("meta.json"),
-        T1_low=500.0,
-        T1_high=5000.0,
-        output=Path("t1_map.nii.gz"),
+    mock_mixed.from_file.assert_called_once_with(
+        se_path=Path("se_modulus.nii.gz"), ir_path=Path("ir_real.nii.gz"), meta_path=Path("meta.json")
     )
+    inst = mock_mixed.from_file.return_value
+    inst.t1_map.assert_called_once_with(T1_low=500.0, T1_high=5000.0)
 
 
-@patch("mritk.mixed.mixed_t1map_postprocessing")
-def test_dispatch_mixed_postprocess(mock_mixed_postprocessing):
+@patch("mritk.mixed.MixedT1")
+def test_dispatch_mixed_postprocess(mock_mixedt1):
     """Test the postprocessing command passes paths correctly."""
 
     mritk.cli.main(["mixed", "postprocess", "-s", "se_modulus.nii.gz", "-t", "t1_raw.nii.gz", "-o", "t1_masked.nii.gz"])
 
-    mock_mixed_postprocessing.assert_called_once_with(
-        SE_nii_path=Path("se_modulus.nii.gz"), T1_path=Path("t1_raw.nii.gz"), output=Path("t1_masked.nii.gz")
-    )
+    mock_mixedt1.from_file.assert_called_once_with(se_path=Path("se_modulus.nii.gz"), t1_path=Path("t1_raw.nii.gz"))
+    inst = mock_mixedt1.from_file.return_value
+    inst.postprocess.assert_called_once()

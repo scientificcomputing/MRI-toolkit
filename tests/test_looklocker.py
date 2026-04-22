@@ -4,10 +4,24 @@ from unittest.mock import patch
 import numpy as np
 
 import mritk.cli
-from mritk.looklocker import (
-    create_largest_island_mask,
-    remove_outliers,
-)
+from mritk.looklocker import create_largest_island_mask, remove_outliers, voxel_fit_function
+
+
+def test_voxel_fit_function():
+    """Test the theoretical Look-Locker recovery curve math."""
+    t = np.array([0.0, 1.0, 2.0])
+    x1, x2, x3 = 1.0, 1.0, 1.0
+
+    # Equation: abs(x1 * (1 - (1+x2^2)*exp(-x3^2 * t)))
+    # With all 1s: abs(1 - 2*exp(-t))
+    # t=0 -> abs(1 - 2*1) = 1
+    # t=1 -> abs(1 - 2/e) ≈ 0.2642
+    # t=2 -> abs(1 - 2/e^2) ≈ 0.7293
+
+    expected = np.abs(1.0 - 2.0 * np.exp(-t))
+    result = voxel_fit_function(t, x1, x2, x3)
+
+    np.testing.assert_array_almost_equal(result, expected)
 
 
 # @pytest.mark.xfail(
