@@ -6,6 +6,7 @@
 
 import argparse
 import logging
+import typing
 from collections.abc import Callable
 from pathlib import Path
 
@@ -16,8 +17,10 @@ from .testing import assert_same_space
 
 logger = logging.getLogger(__name__)
 
+T = typing.TypeVar("T", np.ndarray, float)
 
-def concentration_from_T1_expr(t1: np.ndarray, t1_0: np.ndarray, r1: float) -> np.ndarray:
+
+def concentration_from_T1_expr(t1: T, t1_0: T, r1: float) -> T:
     """
     Computes tracer concentration from T1 relaxation times.
 
@@ -34,7 +37,7 @@ def concentration_from_T1_expr(t1: np.ndarray, t1_0: np.ndarray, r1: float) -> n
     return (1.0 / r1) * ((1.0 / t1) - (1.0 / t1_0))
 
 
-def concentration_from_R1_expr(r1_map: np.ndarray, r1_0_map: np.ndarray, r1: float) -> np.ndarray:
+def concentration_from_R1_expr(r1_map: T, r1_0_map: T, r1: float) -> T:
     """
     Computes tracer concentration from R1 relaxation rates.
 
@@ -49,6 +52,42 @@ def concentration_from_R1_expr(r1_map: np.ndarray, r1_0_map: np.ndarray, r1: flo
         np.ndarray: Computed concentration array.
     """
     return (1.0 / r1) * (r1_map - r1_0_map)
+
+
+def R1_from_concentration_expr(c: T, r1_0: T, r1: float) -> T:
+    """
+    Computes post-contrast R1 relaxation rates from tracer concentration.
+
+    Formula: R1 = C * r1 + R1_0
+
+    Args:
+        c (np.ndarray): Array of tracer concentrations.
+        r1_0 (np.ndarray): Array of pre-contrast (baseline) R1 relaxation rates.
+        r1 (float): Relaxivity of the contrast agent.
+
+    Returns:
+        np.ndarray: Computed post-contrast R1 array.
+    """
+    return c * r1 + r1_0
+
+
+def T1_from_concentration_expr(c: T, t1_0: T, r1: float) -> T:
+    """
+    Computes post-contrast T1 relaxation times from tracer concentration.
+
+    Formula: T1 = 1 / (C * r1 + (1 / T1_0))
+
+    Args:
+        c (np.ndarray | float): Array of tracer concentrations.
+        t1_0 (np.ndarray | float): Array of pre-contrast (baseline) T1 relaxation times.
+        r1 (float): Relaxivity of the contrast agent.
+
+    Returns:
+        np.ndarray | float: Computed post-contrast T1 array.
+    """
+    # Note: In a robust pipeline, you might want to mask or handle cases
+    # where t1_0 is 0 to avoid division by zero errors.
+    return 1.0 / (c * r1 + (1.0 / t1_0))
 
 
 def compute_concentration_from_T1_array(
