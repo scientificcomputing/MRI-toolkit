@@ -9,7 +9,7 @@ from typing import Optional, Sequence
 from rich.logging import RichHandler
 from rich_argparse import RichHelpFormatter
 
-from . import concentration, datasets, hybrid, info, looklocker, masks, mixed, napari, r1, show, statistics
+from . import concentration, datasets, hybrid, info, segmentation, looklocker, masks, mixed, napari, r1, show, statistics
 
 
 def version_info():
@@ -74,6 +74,11 @@ def setup_parser():
 
     napari_parser = subparsers.add_parser("napari", help="Show MRI data using napari", formatter_class=parser.formatter_class)
     napari.add_arguments(napari_parser)
+
+    segmentation_parser = subparsers.add_parser(
+        "seg", help="Perform segmentation tasks", formatter_class=parser.formatter_class
+    )
+    segmentation.add_arguments(segmentation_parser, extra_args_cb=add_extra_arguments)
 
     looklocker_parser = subparsers.add_parser(
         "looklocker", help="Process Look-Locker data", formatter_class=parser.formatter_class
@@ -142,6 +147,8 @@ def dispatch(parser: argparse.ArgumentParser, argv: Optional[Sequence[str]] = No
             show.dispatch(args)
         elif command == "napari":
             napari.dispatch(args)
+        elif command == "seg":
+            segmentation.dispatch(args)
         elif command == "looklocker":
             looklocker.dispatch(args)
         elif command == "mask":

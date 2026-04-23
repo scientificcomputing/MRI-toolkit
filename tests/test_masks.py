@@ -7,12 +7,20 @@ Copyright (C) 2026   Simula Research Laboratory
 
 from pathlib import Path
 from unittest.mock import patch
+import pytest
 
 import nibabel as nib
 import numpy as np
 
 import mritk.cli
-from mritk.masks import compute_csf_mask_array, compute_intracranial_mask_array, csf_mask, intracranial_mask, largest_island
+from mritk.masks import (
+    compute_csf_mask_array,
+    compute_intracranial_mask_array,
+    csf_mask,
+    intracranial_mask,
+    csf_segmentation,
+    largest_island
+)
 from mritk.testing import compare_nifti_images
 
 
@@ -146,7 +154,7 @@ def test_intracranial_mask_io(tmp_path):
     seg_data[4:6, 4:6, 4:6] = 1.0
     nib.save(nib.Nifti1Image(seg_data, affine), seg_path)
 
-    result = intracranial_mask(csf_segmentation_path=csf_path, segmentation_path=seg_path)
+    result = intracranial_mask(segmentation_path=seg_path, csf_mask_path=csf_path)
     result.save(out_path, dtype=np.uint8)
 
     # Verify the file was physically saved to the filesystem
@@ -170,17 +178,17 @@ def test_dispatch_intracranial_mask(mock_intracranial_mask):
         [
             "mask",
             "intracranial",
-            "--csf-segmentation-path",
-            "csf_segmentation.nii.gz",
             "--segmentation-path",
             "segmentation.nii.gz",
+            "--csf-mask-path",
+            "csf_mask.nii.gz",
             "-o",
             "ic_mask.nii.gz",
         ]
     )
 
     mock_intracranial_mask.assert_called_once_with(
-        csf_segmentation_path=Path("csf_segmentation.nii.gz"), segmentation_path=Path("segmentation.nii.gz")
+        segmentation_path=Path("segmentation.nii.gz"), csf_mask_path=Path("csf_mask.nii.gz")
     )
 
 
@@ -198,11 +206,25 @@ def test_csf_mask(tmp_path, mri_data_dir: Path):
 
 def test_intracranial_mask(tmp_path, mri_data_dir: Path):
     csf_segmentation_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf-aseg.nii.gz"
+    csf_mask_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf_binary.nii.gz"
     segmentation_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-wmparc_refined.nii.gz"
 
     ref_output = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-intracranial_binary.nii.gz"
     test_output = tmp_path / "output_seg-intracranial_binary.nii.gz"
 
-    result = intracranial_mask(csf_segmentation_path=csf_segmentation_path, segmentation_path=segmentation_path)
+    result = intracranial_mask(segmentation_path=segmentation_path, csf_mask_path=csf_mask_path)
+    result.save(test_output, dtype=np.uint8)
+    compare_nifti_images(test_output, ref_output, data_tolerance=1e-12)
+
+@pytest.mark.parametrize("seg_type", ["aparc+aseg", "aseg", "wmparc"])
+def test_csf_segmentation(tmp_path, mri_data_dir: Path, seg_type):
+    """Test the CSF segmentation logic by comparing against a known reference."""
+    input_T2w_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/registered/sub-01_ses-01_T2w_registered.nii.gz"
+    input_csf_mask = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf_binary.nii.gz"
+
+    ref_output = mri_data_dir / f"mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf-{seg_type}.nii.gz"
+    test_output = tmp_path / f"output_seg-csf-{seg_type}.nii.gz"
+
+    result = csf_segmentation(input_segmentation=input_T2w_path, csf_mask=input_csf_mask)
     result.save(test_output, dtype=np.uint8)
     compare_nifti_images(test_output, ref_output, data_tolerance=1e-12)

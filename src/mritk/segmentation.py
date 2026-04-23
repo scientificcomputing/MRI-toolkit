@@ -9,12 +9,16 @@ import os
 import re
 from pathlib import Path
 from urllib.request import urlretrieve
+import itertools
+import scipy
+import argparse
+from collections.abc import Callable
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from .data import MRIData, load_mri_data
+from .data import MRIData, load_mri_data, apply_affine
 
 logger = logging.getLogger(__name__)
 
@@ -88,6 +92,10 @@ class Segmentation(MRIData):
     labels to a descriptive Lookup Table (LUT).
     """
 
+    mri: MRIData
+    rois: np.ndarray
+    lut: pd.DataFrame
+
     def __init__(self, data: np.ndarray, affine: np.ndarray, lut: pd.DataFrame | None = None):
         """
         Initializes the Segmentation object.
@@ -147,6 +155,73 @@ class Segmentation(MRIData):
 
         return self.lut.loc[self.lut.index.isin(rois), [self._label_name]].rename_axis("ROI").reset_index()
 
+    def resample_to_reference(self, reference_mri: MRIData):
+        """
+        Resamples the segmentation to match the spatial dimensions and resolution of a reference MRI.
+
+        Args:
+            reference_mri (MRIData): The MRI to which the segmentation will be resampled,
+                                     for example a T1-weighted anatomical scan.
+        Returns:
+            Segmentation: A new Segmentation object containing the resampled data.
+        """
+
+        shape_in = self.shape
+        shape_out = reference_mri.shape
+
+        # Generate a grid of voxel indices for the output space
+        upsampled_indices = np.fromiter(
+            itertools.product(*(np.arange(ni) for ni in shape_out)),
+            dtype=np.dtype((int, 3)),
+        )
+        # Get voxel indices in the input segmentation space corresponding to the output grid
+        seg_indices = apply_affine(
+            np.linalg.inv(self.affine),
+            apply_affine(reference_mri.affine, upsampled_indices),
+        )
+        seg_indices = np.rint(seg_indices).astype(int)
+
+        # The two images does not necessarily share field of view.
+        # Remove voxels which are not located within the segmentation fov.
+        valid_index_mask = (seg_indices > 0).all(axis=1) * (seg_indices < shape_in).all(axis=1)
+        upsampled_indices = upsampled_indices[valid_index_mask]
+        seg_indices = seg_indices[valid_index_mask]
+
+        seg_upsampled = np.zeros(shape_out, dtype=self.data.dtype)
+        I_in, J_in, K_in = seg_indices.T
+        I_out, J_out, K_out = upsampled_indices.T
+        seg_upsampled[I_out, J_out, K_out] = self.data[I_in, J_in, K_in]
+
+        return Segmentation(data=seg_upsampled, affine=reference_mri.affine, lut=self.lut)
+
+    def smooth(self, sigma: float, cutoff_score: float = 0.5, **kwargs) -> MRIData:
+        """
+        Applies Gaussian smoothing to the segmentation labels to create a soft probabilistic map.
+
+        Args:
+            sigma (float): The standard deviation for the Gaussian kernel.
+            cutoff_score (float, optional): A threshold to remove low-confidence voxels. Defaults to 0.5.
+            **kwargs: Additional keyword arguments passed to scipy.ndimage.gaussian_filter.
+
+        Returns:
+            dict[str, np.ndarray]: A dictionary containing 'labels' (the smoothed segmentation)
+            and 'scores' (the confidence scores for each voxel).
+        """
+        smoothed_rois = np.zeros_like(self.data)
+        high_scores = np.zeros(self.data.shape)
+
+        for roi in self.rois:
+            scores = scipy.ndimage.gaussian_filter(
+                (self.data == roi).astype(float), sigma=sigma, **kwargs
+            )
+            is_new_high_score = scores > high_scores
+            smoothed_rois[is_new_high_score] = roi
+            high_scores[is_new_high_score] = scores[is_new_high_score]
+
+        delete_scores = (high_scores < cutoff_score) * (self.data == 0)
+        smoothed_rois[delete_scores] = 0
+
+        return MRIData(data=smoothed_rois, affine=self.affine)
 
 class FreeSurferSegmentation(Segmentation):
     """
@@ -407,3 +482,63 @@ def write_lut(filename: Path, table: pd.DataFrame):
 
     # Save as tab-separated values without headers or indices
     newtable.to_csv(filename, sep="\t", index=False, header=False)
+
+
+
+def add_arguments(
+    parser: argparse.ArgumentParser,
+    extra_args_cb: Callable[[argparse.ArgumentParser], None] | None = None,
+) -> None:
+    subparser = parser.add_subparsers(dest="seg-command", help="Commands for segmentation processing")
+
+    resample_parser = subparser.add_parser(
+        "resample", help="Resample a segmentation to match the space of a reference MRI", formatter_class=parser.formatter_class
+    )
+    resample_parser.add_argument("-i", "--input", type=Path, help="Path to the input segmentation NIfTI file")
+    resample_parser.add_argument("-r", "--reference", type=Path, help="Path to the reference MRI \
+        - usually a registered T1 weighted anatomical scan")
+    resample_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the resampled segmentation")
+
+    smooth_parser = subparser.add_parser(
+        "smooth", help="Apply Gaussian smoothing to a segmentation to create a soft probabilistic map", formatter_class=parser.formatter_class
+    )
+    smooth_parser.add_argument("-i", "--input", type=Path, help="Path to the input (refined) segmentation NIfTI file")
+    smooth_parser.add_argument("-s", "--sigma", type=float, help="Standard deviation for the Gaussian kernel used in smoothing")
+    smooth_parser.add_argument("-c", "--cutoff", type=float, default=0.5, help="Cutoff score to remove low-confidence voxels (default: 0.5)")
+    smooth_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the smoothed segmentation")
+
+
+    refine_parser = subparser.add_parser(
+        "refine", help="Refine a segmentation by applying Gaussian smoothing to the labels", formatter_class=parser.formatter_class
+    )
+    refine_parser.add_argument("-i", "--input", type=Path, help="Path to the input segmentation NIfTI file")
+    refine_parser.add_argument("-r", "--reference", type=Path, help="Path to the reference MRI \
+        - usually a registered T1 weighted anatomical scan")
+    refine_parser.add_argument("-s", "--smooth", type=float, help="Standard deviation for the Gaussian kernel used in smoothing")
+    refine_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the refined segmentation")
+
+    if extra_args_cb is not None:
+        extra_args_cb(resample_parser)
+        extra_args_cb(smooth_parser)
+        extra_args_cb(refine_parser)
+
+
+def dispatch(args):
+    command = args.pop("seg-command")
+    if command == "resample":
+        print("Resampling segmentation...")
+        input_seg = Segmentation.from_file(args.pop("input"))
+        reference_mri = Segmentation.from_file(args.pop("reference"))
+        resampled_seg = input_seg.resample_to_reference(reference_mri)
+        resampled_seg.save(args.pop("output"), dtype=np.int32)
+    elif command == "smooth":
+        smoothed = Segmentation.from_file(args.pop("input")).smooth(sigma=args.pop("sigma"), cutoff_score=args.pop("cutoff"))
+        smoothed.save(args.pop("output"), dtype=np.int32)
+    elif command == "refine":
+        seg = Segmentation.from_file(args.pop("input"))
+        refined = seg.resample_to_reference(MRIData.from_file(args.pop("reference")))
+        smoothed = refined.smooth(sigma=args.pop("smooth"))
+        refined.data = np.where(smoothed.data > 0, smoothed.data, refined.data)
+        refined.save(args.pop("output"), dtype=np.int32)
+    else:
+        raise ValueError(f"Unknown segmentation command: {command}")
