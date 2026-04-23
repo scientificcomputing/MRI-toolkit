@@ -7,19 +7,19 @@ Copyright (C) 2026   Simula Research Laboratory
 
 from pathlib import Path
 from unittest.mock import patch
-import pytest
 
 import nibabel as nib
 import numpy as np
+import pytest
 
 import mritk.cli
 from mritk.masks import (
     compute_csf_mask_array,
     compute_intracranial_mask_array,
     csf_mask,
-    intracranial_mask,
     csf_segmentation,
-    largest_island
+    intracranial_mask,
+    largest_island,
 )
 from mritk.testing import compare_nifti_images
 
@@ -215,6 +215,7 @@ def test_intracranial_mask(tmp_path, mri_data_dir: Path):
     result = intracranial_mask(segmentation_path=segmentation_path, csf_mask_path=csf_mask_path)
     result.save(test_output, dtype=np.uint8)
     compare_nifti_images(test_output, ref_output, data_tolerance=1e-12)
+
 
 @pytest.mark.parametrize("seg_type", ["aparc+aseg", "aseg", "wmparc"])
 def test_csf_segmentation(tmp_path, mri_data_dir: Path, seg_type):

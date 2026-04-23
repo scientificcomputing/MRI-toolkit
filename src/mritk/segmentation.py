@@ -4,21 +4,21 @@
 # Copyright (C) 2026   Cécile Daversin-Catty (cecile@simula.no)
 # Copyright (C) 2026   Simula Research Laboratory
 
+import argparse
+import itertools
 import logging
 import os
 import re
+from collections.abc import Callable
 from pathlib import Path
 from urllib.request import urlretrieve
-import itertools
-import scipy
-import argparse
-from collections.abc import Callable
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import scipy
 
-from .data import MRIData, load_mri_data, apply_affine
+from .data import MRIData, apply_affine, load_mri_data
 
 logger = logging.getLogger(__name__)
 
@@ -211,9 +211,7 @@ class Segmentation(MRIData):
         high_scores = np.zeros(self.data.shape)
 
         for roi in self.rois:
-            scores = scipy.ndimage.gaussian_filter(
-                (self.data == roi).astype(float), sigma=sigma, **kwargs
-            )
+            scores = scipy.ndimage.gaussian_filter((self.data == roi).astype(float), sigma=sigma, **kwargs)
             is_new_high_score = scores > high_scores
             smoothed_rois[is_new_high_score] = roi
             high_scores[is_new_high_score] = scores[is_new_high_score]
@@ -222,6 +220,7 @@ class Segmentation(MRIData):
         smoothed_rois[delete_scores] = 0
 
         return MRIData(data=smoothed_rois, affine=self.affine)
+
 
 class FreeSurferSegmentation(Segmentation):
     """
@@ -484,7 +483,6 @@ def write_lut(filename: Path, table: pd.DataFrame):
     newtable.to_csv(filename, sep="\t", index=False, header=False)
 
 
-
 def add_arguments(
     parser: argparse.ArgumentParser,
     extra_args_cb: Callable[[argparse.ArgumentParser], None] | None = None,
@@ -495,25 +493,40 @@ def add_arguments(
         "resample", help="Resample a segmentation to match the space of a reference MRI", formatter_class=parser.formatter_class
     )
     resample_parser.add_argument("-i", "--input", type=Path, help="Path to the input segmentation NIfTI file")
-    resample_parser.add_argument("-r", "--reference", type=Path, help="Path to the reference MRI \
-        - usually a registered T1 weighted anatomical scan")
+    resample_parser.add_argument(
+        "-r",
+        "--reference",
+        type=Path,
+        help="Path to the reference MRI \
+        - usually a registered T1 weighted anatomical scan",
+    )
     resample_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the resampled segmentation")
 
     smooth_parser = subparser.add_parser(
-        "smooth", help="Apply Gaussian smoothing to a segmentation to create a soft probabilistic map", formatter_class=parser.formatter_class
+        "smooth",
+        help="Apply Gaussian smoothing to a segmentation to create a soft probabilistic map",
+        formatter_class=parser.formatter_class,
     )
     smooth_parser.add_argument("-i", "--input", type=Path, help="Path to the input (refined) segmentation NIfTI file")
     smooth_parser.add_argument("-s", "--sigma", type=float, help="Standard deviation for the Gaussian kernel used in smoothing")
-    smooth_parser.add_argument("-c", "--cutoff", type=float, default=0.5, help="Cutoff score to remove low-confidence voxels (default: 0.5)")
+    smooth_parser.add_argument(
+        "-c", "--cutoff", type=float, default=0.5, help="Cutoff score to remove low-confidence voxels (default: 0.5)"
+    )
     smooth_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the smoothed segmentation")
 
-
     refine_parser = subparser.add_parser(
-        "refine", help="Refine a segmentation by applying Gaussian smoothing to the labels", formatter_class=parser.formatter_class
+        "refine",
+        help="Refine a segmentation by applying Gaussian smoothing to the labels",
+        formatter_class=parser.formatter_class,
     )
     refine_parser.add_argument("-i", "--input", type=Path, help="Path to the input segmentation NIfTI file")
-    refine_parser.add_argument("-r", "--reference", type=Path, help="Path to the reference MRI \
-        - usually a registered T1 weighted anatomical scan")
+    refine_parser.add_argument(
+        "-r",
+        "--reference",
+        type=Path,
+        help="Path to the reference MRI \
+        - usually a registered T1 weighted anatomical scan",
+    )
     refine_parser.add_argument("-s", "--smooth", type=float, help="Standard deviation for the Gaussian kernel used in smoothing")
     refine_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the refined segmentation")
 
