@@ -21,15 +21,19 @@ def main():
         "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-intracranial_binary.nii.gz",
         "mri-processed/mri_dataset/derivatives/sub-01/ses-01/sub-01_ses-01_acq-mixed_T1map.nii.gz",
         "mri-processed/mri_dataset/derivatives/sub-01/ses-01/sub-01_ses-01_acq-looklocker_T1map.nii.gz",
-        "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-aparc+aseg_refined.nii.gz",
         "mri-processed/mri_processed_data/sub-01/registered/sub-01_ses-01_acq-looklocker_T1map_registered.nii.gz",
         "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf-aseg.nii.gz",
+        "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf-aparc+aseg.nii.gz",
+        "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf-wmparc.nii.gz",
+        "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-aseg_refined.nii.gz",
+        "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-aparc+aseg_refined.nii.gz",
         "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-wmparc_refined.nii.gz",
         "mri-processed/mri_processed_data/sub-01/registered/sub-01_ses-01_T2w_registered.nii.gz",
         "freesurfer/mri_processed_data/freesurfer/sub-01/mri/aparc+aseg.mgz",
         "freesurfer/mri_processed_data/freesurfer/sub-01/mri/aseg.mgz",
         "freesurfer/mri_processed_data/freesurfer/sub-01/mri/wmparc.mgz", 
     ]
+
 
     for file in files:
         src = inputdir / file
