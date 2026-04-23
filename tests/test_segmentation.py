@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import pytest
 
+import mritk.cli
+from mritk.data import MRIData
 from mritk.segmentation import (
     LUT_REGEX,
     VENTRICLES,
@@ -17,10 +19,7 @@ from mritk.segmentation import (
     validate_lut_file,
     write_lut,
 )
-from mritk.data import MRIData
 from mritk.testing import compare_nifti_images
-import mritk.cli
-
 
 
 def test_segmentation_initialization(example_segmentation: Segmentation):
@@ -185,6 +184,7 @@ def test_write_lut_file_io(tmp_path):
     assert content[0] == "4\tLeft-Lateral-Ventricle\t120\t18\t134\t0"
     assert content[1] == "5\tLeft-Inf-Lat-Vent\t198\t51\t122\t0"
 
+
 # Note : Refinement is actually testing both resampling and smoothing
 @pytest.mark.skip(reason="Takes too long to run")
 @pytest.mark.parametrize("seg_type", ["aparc+aseg", "aseg", "wmparc"])
@@ -193,7 +193,7 @@ def test_segmentation_refinement(tmp_path, mri_data_dir: Path, seg_type: str):
     ref_mri = mri_data_dir / "mri-processed/mri_processed_data/sub-01/registered/sub-01_ses-01_T1w_registered.nii.gz"
     smoothing = 1
 
-    FS_segmentation =  mri_data_dir / f"freesurfer/mri_processed_data/freesurfer/sub-01/mri/{seg_type}.mgz"
+    FS_segmentation = mri_data_dir / f"freesurfer/mri_processed_data/freesurfer/sub-01/mri/{seg_type}.mgz"
     ref_output = mri_data_dir / f"mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-{seg_type}_refined.nii.gz"
     test_output = tmp_path / "output_refined.nii.gz"
 
@@ -204,15 +204,17 @@ def test_segmentation_refinement(tmp_path, mri_data_dir: Path, seg_type: str):
     result.save(test_output, dtype=np.int32)
     compare_nifti_images(test_output, ref_output, data_tolerance=1e-12)
 
+
 @patch("mritk.segmentation.Segmentation")
 def test_dispatch_resample(mock_seg):
     """Test that dispatch correctly routes to segmentation resample."""
 
     mritk.cli.main(["seg", "resample", "-i", "mock_in.nii.gz", "-r", "mock_ref.nii.gz", "-o", "mock_out.nii.gz"])
 
-    assert mock_seg.from_file.call_count == 2 # Called once for input segmentation and once for reference MRI
-    inst = mock_seg.from_file.return_value # Segmentation type instance returned by from_file
+    assert mock_seg.from_file.call_count == 2  # Called once for input segmentation and once for reference MRI
+    inst = mock_seg.from_file.return_value  # Segmentation type instance returned by from_file
     inst.resample_to_reference.assert_called_once_with(mock_seg.from_file.return_value)
+
 
 @patch("mritk.segmentation.Segmentation")
 def test_dispatch_smoothing(mock_seg):
@@ -221,5 +223,5 @@ def test_dispatch_smoothing(mock_seg):
     mritk.cli.main(["seg", "smooth", "-i", "mock_in.nii.gz", "-o", "mock_out.nii.gz", "-s", "1"])
 
     mock_seg.from_file.assert_called_once_with(Path("mock_in.nii.gz"))
-    inst = mock_seg.from_file.return_value # Segmentation type instance returned by from_file
+    inst = mock_seg.from_file.return_value  # Segmentation type instance returned by from_file
     inst.smooth.assert_called_once_with(sigma=1, cutoff_score=0.5)
