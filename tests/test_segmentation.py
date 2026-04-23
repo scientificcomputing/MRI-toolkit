@@ -197,7 +197,8 @@ def test_segmentation_refinement(tmp_path, mri_data_dir: Path, seg_type: str):
     ref_output = mri_data_dir / f"mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-{seg_type}_refined.nii.gz"
     test_output = tmp_path / "output_refined.nii.gz"
 
-    fs_input = Segmentation.from_file(FS_segmentation)
+    fs_input = Segmentation.from_file(FS_segmentation) #MRIData type
+    fs_input = Segmentation(data=fs_input.data, affine=fs_input.affine) # Convert to Segmentation type to access refinement methods
     result = fs_input.resample_to_reference(MRIData.from_file(ref_mri))
     smoothed = result.smooth(sigma=smoothing)
     result.data = smoothed.data
