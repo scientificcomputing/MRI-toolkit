@@ -205,7 +205,6 @@ def test_csf_mask(tmp_path, mri_data_dir: Path):
 
 
 def test_intracranial_mask(tmp_path, mri_data_dir: Path):
-    csf_segmentation_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf-aseg.nii.gz"
     csf_mask_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf_binary.nii.gz"
     segmentation_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-wmparc_refined.nii.gz"
 
