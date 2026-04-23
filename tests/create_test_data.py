@@ -34,7 +34,6 @@ def main():
         "freesurfer/mri_processed_data/freesurfer/sub-01/mri/wmparc.mgz",
     ]
 
-
     for file in files:
         src = inputdir / file
         dst = outdir / file
