@@ -645,7 +645,7 @@ def dispatch(args):
         seg = Segmentation.from_file(args.pop("input"))
         refined = seg.resample_to_reference(MRIData.from_file(args.pop("reference")))
         smoothed = refined.smooth(sigma=args.pop("smooth"))
-        refined.mri.data = np.where(smoothed.data > 0, smoothed.data, refined.data)
+        refined.mri.data = np.where(smoothed.mri.data > 0, smoothed.mri.data, refined.mri.data)
         refined.save(args.pop("output"), dtype=np.int32)
 
     else:
