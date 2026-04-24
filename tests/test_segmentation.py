@@ -196,14 +196,14 @@ def test_segmentation_refinement(tmp_path, mri_data_dir: Path, gonzo_roi, seg_ty
     FS_seg_path = mri_data_dir / f"freesurfer/mri_processed_data/freesurfer/sub-01/mri/{seg_type}.mgz"
     fs_seg = Segmentation.from_file(FS_seg_path)  # MRIData type
     vi = gonzo_roi.voxel_indices(affine=fs_seg.mri.affine)
-    v = fs_seg.mri.data[tuple(vi.T)].reshape((*gonzo_roi.shape, -1))
+    v = fs_seg.mri.data[tuple(vi.T)].reshape(gonzo_roi.shape)
     piece_fs_seg_data = mritk.data.MRIData(data=v, affine=gonzo_roi.affine)
 
     # Get gonzo_roi from reference MRI to use as reference for resampling
     ref_mri_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/registered/sub-01_ses-01_T1w_registered.nii.gz"
     ref_mri = MRIData.from_file(ref_mri_path, dtype=np.single)
     vi = gonzo_roi.voxel_indices(affine=ref_mri.affine)
-    v = ref_mri.data[tuple(vi.T)].reshape((*gonzo_roi.shape, -1))
+    v = ref_mri.data[tuple(vi.T)].reshape(gonzo_roi.shape)
     piece_ref_mri_data = mritk.data.MRIData(data=v, affine=gonzo_roi.affine)
 
     # Output: Refine segmentation from gonzoi_roi segmentation and ref MRI
@@ -219,7 +219,7 @@ def test_segmentation_refinement(tmp_path, mri_data_dir: Path, gonzo_roi, seg_ty
     ref_output_path = mri_data_dir / f"mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-{seg_type}_refined.nii.gz"
     ref_output = mritk.data.MRIData.from_file(ref_output_path, dtype=np.single)
     vi = gonzo_roi.voxel_indices(affine=ref_output.affine)
-    v_ref = ref_output.data[tuple(vi.T)].reshape((*gonzo_roi.shape, -1))
+    v_ref = ref_output.data[tuple(vi.T)].reshape(gonzo_roi.shape)
 
     mritk.testing.compare_nifti_arrays(result.mri.data, v_ref, data_tolerance=1e-12)
 
