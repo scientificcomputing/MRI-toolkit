@@ -20,7 +20,6 @@ from mritk.segmentation import (
     validate_lut_file,
     write_lut,
 )
-from mritk.testing import compare_nifti_images
 
 
 def test_segmentation_initialization(example_segmentation: Segmentation):
@@ -225,19 +224,30 @@ def test_segmentation_refinement(tmp_path, mri_data_dir: Path, gonzo_roi, seg_ty
 
 
 @pytest.mark.parametrize("seg_type", ["aparc+aseg", "aseg", "wmparc"])
-def test_csf_segmentation(tmp_path, mri_data_dir: Path, seg_type):
+def test_csf_segmentation(tmp_path, mri_data_dir: Path, gonzo_roi, seg_type):
     """Test the CSF segmentation logic by comparing against a known reference."""
-    input_T2w_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/registered/sub-01_ses-01_T2w_registered.nii.gz"
+    input_seg_path = mri_data_dir / f"mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-{seg_type}_refined.nii.gz"
     input_csf_mask_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf_binary.nii.gz"
 
-    ref_output = mri_data_dir / f"mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf-{seg_type}.nii.gz"
-    test_output = tmp_path / f"output_seg-csf-{seg_type}.nii.gz"
+    ref_output_path = mri_data_dir / f"mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf-{seg_type}.nii.gz"
 
-    input_T2w = MRIData.from_file(input_T2w_path, dtype=np.single)
+    input_seg = MRIData.from_file(input_seg_path, dtype=np.single)
+    vi = gonzo_roi.voxel_indices(affine=input_seg.affine)
+    v = input_seg.data[tuple(vi.T)].reshape(gonzo_roi.shape)
+    piece_seg_data = mritk.data.MRIData(data=v, affine=gonzo_roi.affine)
+
     input_csf_mask = MRIData.from_file(input_csf_mask_path, dtype=np.single)
-    result = CSFSegmentation(segmentation=input_T2w, csf_mask=input_csf_mask).to_csf_segmentation()
-    result.save(test_output, dtype=np.uint8)
-    compare_nifti_images(test_output, ref_output, data_tolerance=1e-12)
+    vi = gonzo_roi.voxel_indices(affine=input_csf_mask.affine)
+    v = input_csf_mask.data[tuple(vi.T)].reshape(gonzo_roi.shape)
+    piece_csf_mask_data = mritk.data.MRIData(data=v, affine=gonzo_roi.affine)
+
+    result = CSFSegmentation(segmentation=piece_seg_data, csf_mask=piece_csf_mask_data).to_csf_segmentation()
+
+    ref_output = MRIData.from_file(ref_output_path, dtype=np.single)
+    vi = gonzo_roi.voxel_indices(affine=ref_output.affine)
+    v_ref = ref_output.data[tuple(vi.T)].reshape(gonzo_roi.shape)
+
+    mritk.testing.compare_nifti_arrays(result.data, v_ref, data_tolerance=1e-12)
 
 
 @patch("mritk.segmentation.Segmentation")
