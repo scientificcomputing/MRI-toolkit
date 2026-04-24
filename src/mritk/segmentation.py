@@ -12,6 +12,7 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 from urllib.request import urlretrieve
+from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
@@ -19,6 +20,7 @@ import pandas as pd
 import scipy
 
 from .data import MRIData, apply_affine, load_mri_data
+from .testing import assert_same_space
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +84,7 @@ SEGMENTATION_GROUPS = {
     "subcortical-gm": SUBCORTICAL_GM_RANGES,
 }
 
-
-class Segmentation(MRIData):
+class Segmentation:
     """
     Base class for MRI segmentations, linking spatial data with anatomical lookup tables.
 
@@ -95,8 +96,9 @@ class Segmentation(MRIData):
     mri: MRIData
     rois: np.ndarray
     lut: pd.DataFrame
+    label_name: str
 
-    def __init__(self, data: np.ndarray, affine: np.ndarray, lut: pd.DataFrame | None = None):
+    def __init__(self, mri: MRIData, lut: pd.DataFrame | None = None):
         """
         Initializes the Segmentation object.
 
@@ -106,11 +108,10 @@ class Segmentation(MRIData):
             lut (Optional[pd.DataFrame], optional): A pandas DataFrame mapping numerical labels
                 to their descriptions. If None, a default numerical mapping is generated. Defaults to None.
         """
-        super().__init__(data, affine)
-        self.data = self.data.astype(int)
+        self.mri = mri
 
         # Extract all unique active regions (ignoring 0/background)
-        self.rois = np.unique(self.data[self.data > 0])
+        self.rois = np.unique(self.mri.data[self.mri.data > 0])
 
         if lut is not None:
             self.lut = lut
@@ -118,7 +119,39 @@ class Segmentation(MRIData):
             self.lut = pd.DataFrame({"Label": self.rois}, index=self.rois)
 
         # Identify the primary label column dynamically
-        self._label_name = "Label" if "Label" in self.lut.columns else self.lut.columns[0]
+        self.label_name = "Label" if "Label" in self.lut.columns else self.lut.columns[0]
+
+    @classmethod
+    def from_file(cls, seg_path: Path) -> "Segmentation":
+        """Loads a Segmentation from a NIfTI file.
+
+        Args:
+              seg_path (Path): The file path to the segmentation NIfTI file.
+          Returns:
+              Segmentation: An instance of the Segmentation class containing the loaded
+              segmentation data and affine transformation.
+          """
+        logger.info(f"Loading segmentation from {seg_path}.")
+        mri = MRIData.from_file(seg_path, dtype=np.single)
+
+        rois = np.unique(mri.data[mri.data > 0])
+        lut = pd.DataFrame({"Label": rois}, index=rois)
+
+        return cls(mri=mri, lut=lut)
+
+    def set_lut(self, lut: pd.DataFrame, label_column: str = "Label"):
+        """Sets the Lookup Table (LUT) for the segmentation, ensuring it matches the present ROIs.
+
+        Args:
+            lut (pd.DataFrame): A pandas DataFrame mapping numerical labels
+                to their descriptions. If None, a default numerical mapping is generated. Defaults to None.
+            label_column (str, optional): The name of the column in the LUT that contains the label descriptions. Defaults to "Label".
+        """
+
+        self.lut = lut
+        self.label_name = label_column
+        if self.label_name not in self.lut.columns:
+            raise ValueError(f"Specified label column '{self.label_name}' not found in LUT.")
 
     @property
     def num_rois(self) -> int:
@@ -153,7 +186,7 @@ class Segmentation(MRIData):
         if not np.isin(rois, self.rois).all():
             raise ValueError("Some of the provided ROIs are not present in the segmentation.")
 
-        return self.lut.loc[self.lut.index.isin(rois), [self._label_name]].rename_axis("ROI").reset_index()
+        return self.lut.loc[self.lut.index.isin(rois), [self.label_name]].rename_axis("ROI").reset_index()
 
     def resample_to_reference(self, reference_mri: MRIData):
         """
@@ -166,7 +199,7 @@ class Segmentation(MRIData):
             Segmentation: A new Segmentation object containing the resampled data.
         """
 
-        shape_in = self.shape
+        shape_in = self.mri.shape
         shape_out = reference_mri.shape
 
         # Generate a grid of voxel indices for the output space
@@ -176,7 +209,7 @@ class Segmentation(MRIData):
         )
         # Get voxel indices in the input segmentation space corresponding to the output grid
         seg_indices = apply_affine(
-            np.linalg.inv(self.affine),
+            np.linalg.inv(self.mri.affine),
             apply_affine(reference_mri.affine, upsampled_indices),
         )
         seg_indices = np.rint(seg_indices).astype(int)
@@ -187,12 +220,13 @@ class Segmentation(MRIData):
         upsampled_indices = upsampled_indices[valid_index_mask]
         seg_indices = seg_indices[valid_index_mask]
 
-        seg_upsampled = np.zeros(shape_out, dtype=self.data.dtype)
+        seg_upsampled = np.zeros(shape_out, dtype=self.mri.data.dtype)
         I_in, J_in, K_in = seg_indices.T
         I_out, J_out, K_out = upsampled_indices.T
-        seg_upsampled[I_out, J_out, K_out] = self.data[I_in, J_in, K_in]
+        seg_upsampled[I_out, J_out, K_out] = self.mri.data[I_in, J_in, K_in]
 
-        return Segmentation(data=seg_upsampled, affine=reference_mri.affine, lut=self.lut)
+        #return Segmentation(data=seg_upsampled, affine=reference_mri.affine, lut=self.lut)
+        return MRIData(data=seg_upsampled, affine=reference_mri.affine)
 
     def smooth(self, sigma: float, cutoff_score: float = 0.5, **kwargs) -> MRIData:
         """
@@ -207,19 +241,19 @@ class Segmentation(MRIData):
             dict[str, np.ndarray]: A dictionary containing 'labels' (the smoothed segmentation)
             and 'scores' (the confidence scores for each voxel).
         """
-        smoothed_rois = np.zeros_like(self.data)
-        high_scores = np.zeros(self.data.shape)
+        smoothed_rois = np.zeros_like(self.mri.data)
+        high_scores = np.zeros(self.mri.data.shape)
 
         for roi in self.rois:
-            scores = scipy.ndimage.gaussian_filter((self.data == roi).astype(float), sigma=sigma, **kwargs)
+            scores = scipy.ndimage.gaussian_filter((self.mri.data == roi).astype(float), sigma=sigma, **kwargs)
             is_new_high_score = scores > high_scores
             smoothed_rois[is_new_high_score] = roi
             high_scores[is_new_high_score] = scores[is_new_high_score]
 
-        delete_scores = (high_scores < cutoff_score) * (self.data == 0)
+        delete_scores = (high_scores < cutoff_score) * (self.mri.data == 0)
         smoothed_rois[delete_scores] = 0
 
-        return MRIData(data=smoothed_rois, affine=self.affine)
+        return MRIData(data=smoothed_rois, affine=self.mri.affine)
 
 
 class FreeSurferSegmentation(Segmentation):
@@ -253,9 +287,8 @@ class FreeSurferSegmentation(Segmentation):
         # FreeSurfer LUTs index by the "label" column
         lut = lut.set_index("label") if "label" in lut.columns else lut
 
-        data, affine = load_mri_data(filepath, dtype=dtype, orient=orient)
-        return cls(data=data, affine=affine, lut=lut)
-
+        mri = MRIData.from_file(filepath, dtype=dtype, orient=orient)
+        return cls(mri=mri, lut=lut)
 
 class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
     """
@@ -292,7 +325,7 @@ class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
             left_on="FreeSurfer_ROI",
             right_on="FreeSurfer_ROI",
             how="outer",
-        ).drop(columns=["FreeSurfer_ROI"])[["ROI", self._label_name, "tissue_type"]]
+        ).drop(columns=["FreeSurfer_ROI"])[["ROI", self.label_name, "tissue_type"]]
 
     def get_tissue_type(self, rois: npt.NDArray[np.int32] | None = None) -> pd.DataFrame:
         """
@@ -322,6 +355,33 @@ class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
         ret["FreeSurfer_ROI"] = ret["ROI"] % 10000
         return ret
 
+# @dataclass
+class CSFSegmentation:
+    segmentation: MRIData
+    csf_mask: MRIData
+
+    def __init__(self, segmentation: MRIData, csf_mask: MRIData):
+        assert_same_space(segmentation, csf_mask)
+        self.segmentation = segmentation
+        self.csf_mask = csf_mask
+
+    @classmethod
+    def from_file(cls, segmentation_path: Path, csf_mask_path: Path) -> "CSFSegmentation":
+        segmentation = MRIData.from_file(segmentation_path, dtype=np.int16)
+        csf_mask = MRIData.from_file(csf_mask_path, dtype=bool)
+        assert_same_space(segmentation, csf_mask)
+        return cls(segmentation=segmentation, csf_mask=csf_mask)
+    
+    def to_csf_segmentation(self) -> MRIData:
+        # Get interpolation operator
+        I, J, K = np.where(self.segmentation.data != 0)
+        interp = scipy.interpolate.NearestNDInterpolator(np.array([I, J, K]).T, self.segmentation.data[I, J, K])
+        # Interpolate segmentation values at CSF mask locations
+        i, j, k = np.where(self.csf_mask.data != 0)
+        csf_seg = np.zeros_like(self.segmentation.data, dtype=np.int16)
+        csf_seg[i, j, k] = interp(i, j, k)
+
+        return MRIData(data=csf_seg.astype(np.int16), affine=self.csf_mask.affine)
 
 def default_segmentation_groups() -> dict[str, list[int]]:
     """
@@ -541,7 +601,7 @@ def dispatch(args):
     if command == "resample":
         print("Resampling segmentation...")
         input_seg = Segmentation.from_file(args.pop("input"))
-        reference_mri = Segmentation.from_file(args.pop("reference"))
+        reference_mri = MRIData.from_file(args.pop("reference"))
         resampled_seg = input_seg.resample_to_reference(reference_mri)
         resampled_seg.save(args.pop("output"), dtype=np.int32)
     elif command == "smooth":

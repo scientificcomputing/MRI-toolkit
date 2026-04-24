@@ -12,6 +12,7 @@ from mritk.segmentation import (
     VENTRICLES,
     ExtendedFreeSurferSegmentation,
     Segmentation,
+    CSFSegmentation,
     default_segmentation_groups,
     lut_record,
     read_freesurfer_lut,
@@ -23,8 +24,8 @@ from mritk.testing import compare_nifti_images
 
 
 def test_segmentation_initialization(example_segmentation: Segmentation):
-    assert example_segmentation.data.shape == (100, 4)
-    assert example_segmentation.affine.shape == (4, 4)
+    assert example_segmentation.mri.data.shape == (100, 4)
+    assert example_segmentation.mri.affine.shape == (4, 4)
     assert example_segmentation.num_rois == 3
     assert set(example_segmentation.roi_labels) == {1, 2, 3}
     assert example_segmentation.lut.shape == (3, 1)
@@ -47,11 +48,11 @@ def test_freesurfer_segmentation_labels(mri_data_dir: Path):
 
 
 def test_extended_freesurfer_segmentation_labels(example_segmentation: Segmentation, mri_data_dir: Path):
-    data = example_segmentation.data
+    data = example_segmentation.mri.data
     data[0:2, 0:2] = 10001  # csf
     data[3:5, 3:5] = 20001  # dura
 
-    ext_fs_seg = ExtendedFreeSurferSegmentation(data, affine=np.eye(4))
+    ext_fs_seg = ExtendedFreeSurferSegmentation(MRIData(data=data, affine=np.eye(4)))
     labels = ext_fs_seg.get_roi_labels()
 
     assert set(labels["ROI"]) == set(ext_fs_seg.roi_labels)
@@ -186,35 +187,74 @@ def test_write_lut_file_io(tmp_path):
 
 
 # Note : Refinement is actually testing both resampling and smoothing
-@pytest.mark.skip(reason="Takes too long to run")
+# @pytest.mark.skip(reason="Takes too long to run")
+@pytest.mark.xfail(
+    reason=(
+        "Call to resample_to_reference fails "
+        "due to shape issue when using gonzo_roi. " 
+        "Needs to be investigated further."
+    )
+)
 @pytest.mark.parametrize("seg_type", ["aparc+aseg", "aseg", "wmparc"])
-def test_segmentation_refinement(tmp_path, mri_data_dir: Path, seg_type: str):
+def test_segmentation_refinement(tmp_path, mri_data_dir: Path, gonzo_roi, seg_type: str):
 
-    ref_mri = mri_data_dir / "mri-processed/mri_processed_data/sub-01/registered/sub-01_ses-01_T1w_registered.nii.gz"
-    smoothing = 1
+    # Get gonzo_roi from FS_segmentation
+    FS_seg_path = mri_data_dir / f"freesurfer/mri_processed_data/freesurfer/sub-01/mri/{seg_type}.mgz"
+    fs_seg = Segmentation.from_file(FS_seg_path) #MRIData type
+    vi = gonzo_roi.voxel_indices(affine=fs_seg.mri.affine)
+    v = fs_seg.mri.data[tuple(vi.T)].reshape((*gonzo_roi.shape, -1))
+    piece_fs_seg_data = mritk.data.MRIData(data=v, affine=gonzo_roi.affine)
 
-    FS_segmentation = mri_data_dir / f"freesurfer/mri_processed_data/freesurfer/sub-01/mri/{seg_type}.mgz"
-    ref_output = mri_data_dir / f"mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-{seg_type}_refined.nii.gz"
+    # Get gonzo_roi from reference MRI to use as reference for resampling
+    ref_mri_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/registered/sub-01_ses-01_T1w_registered.nii.gz"
+    ref_mri = MRIData.from_file(ref_mri_path, dtype=np.single)
+    vi = gonzo_roi.voxel_indices(affine=ref_mri.affine)
+    v = ref_mri.data[tuple(vi.T)].reshape((*gonzo_roi.shape, -1))
+    piece_ref_mri_data = mritk.data.MRIData(data=v, affine=gonzo_roi.affine)
+
+    # Output: Refine segmentation from gonzoi_roi segmentation and ref MRI
     test_output = tmp_path / "output_refined.nii.gz"
-
-    fs_input = Segmentation.from_file(FS_segmentation) #MRIData type
-    fs_input = Segmentation(data=fs_input.data, affine=fs_input.affine) # Convert to Segmentation type to access refinement methods
-    result = fs_input.resample_to_reference(MRIData.from_file(ref_mri))
+    smoothing = 1
+    piece_fs_seg = Segmentation(mri=piece_fs_seg_data)
+    result = piece_fs_seg.resample_to_reference(piece_ref_mri_data)
     smoothed = result.smooth(sigma=smoothing)
     result.data = smoothed.data
     result.save(test_output, dtype=np.int32)
+
+    ref_output_path = mri_data_dir / f"mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-{seg_type}_refined.nii.gz"
+    ref_output = mritk.data.MRIData.from_file(ref_output_path, dtype=np.single)
+    vi = gonzo_roi.voxel_indices(affine=ref_output.affine)
+    v_ref = ref_output.data[tuple(vi.T)].reshape((*gonzo_roi.shape, -1))
+
+    mritk.testing.compare_nifti_arrays(result.data, v_ref, data_tolerance=1e-12)
+
+@pytest.mark.parametrize("seg_type", ["aparc+aseg", "aseg", "wmparc"])
+def test_csf_segmentation(tmp_path, mri_data_dir: Path, seg_type):
+    """Test the CSF segmentation logic by comparing against a known reference."""
+    input_T2w_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/registered/sub-01_ses-01_T2w_registered.nii.gz"
+    input_csf_mask_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf_binary.nii.gz"
+
+    ref_output = mri_data_dir / f"mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf-{seg_type}.nii.gz"
+    test_output = tmp_path / f"output_seg-csf-{seg_type}.nii.gz"
+
+    input_T2w = MRIData.from_file(input_T2w_path, dtype=np.single)
+    input_csf_mask = MRIData.from_file(input_csf_mask_path, dtype=np.single)
+    result = CSFSegmentation(segmentation=input_T2w, csf_mask=input_csf_mask).to_csf_segmentation()
+    result.save(test_output, dtype=np.uint8)
     compare_nifti_images(test_output, ref_output, data_tolerance=1e-12)
 
-
 @patch("mritk.segmentation.Segmentation")
-def test_dispatch_resample(mock_seg):
+@patch("mritk.data.MRIData")
+def test_dispatch_resample(mock_seg, mock_mri_data):
     """Test that dispatch correctly routes to segmentation resample."""
 
     mritk.cli.main(["seg", "resample", "-i", "mock_in.nii.gz", "-r", "mock_ref.nii.gz", "-o", "mock_out.nii.gz"])
 
-    assert mock_seg.from_file.call_count == 2  # Called once for input segmentation and once for reference MRI
+    mock_seg.from_file.assert_called_once_with(Path("mock_in.nii.gz"), dtype=np.single)
+    mock_mri_data.from_file.assert_called_once_with(Path("mock_ref.nii.gz"), dtype=np.single)
+    
     inst = mock_seg.from_file.return_value  # Segmentation type instance returned by from_file
-    inst.resample_to_reference.assert_called_once_with(mock_seg.from_file.return_value)
+    inst.resample_to_reference.assert_called_once_with(mock_mri_data.from_file.return_value)
 
 
 @patch("mritk.segmentation.Segmentation")
