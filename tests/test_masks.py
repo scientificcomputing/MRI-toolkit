@@ -10,7 +10,6 @@ from unittest.mock import patch
 
 import nibabel as nib
 import numpy as np
-import pytest
 
 import mritk.cli
 from mritk.data import MRIData
@@ -193,9 +192,7 @@ def test_dispatch_intracranial_mask(mock_from_file, mock_intracranial_mask):
 
     seg_data = mock_from_file(Path("segmentation.nii.gz"), dtype=np.single)
     csf_data = mock_from_file(Path("csf_mask.nii.gz"), dtype=np.single)
-    mock_intracranial_mask.assert_called_once_with(
-        segmentation=seg_data, csf_mask=csf_data
-    )
+    mock_intracranial_mask.assert_called_once_with(segmentation=seg_data, csf_mask=csf_data)
 
 
 def test_csf_mask(tmp_path, mri_data_dir: Path):
@@ -224,4 +221,3 @@ def test_intracranial_mask(tmp_path, mri_data_dir: Path):
     result = intracranial_mask(segmentation=input_segmentation, csf_mask=input_csf_mask)
     result.save(test_output, dtype=np.uint8)
     compare_nifti_images(test_output, ref_output, data_tolerance=1e-12)
-

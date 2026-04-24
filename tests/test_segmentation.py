@@ -10,9 +10,9 @@ from mritk.data import MRIData
 from mritk.segmentation import (
     LUT_REGEX,
     VENTRICLES,
+    CSFSegmentation,
     ExtendedFreeSurferSegmentation,
     Segmentation,
-    CSFSegmentation,
     default_segmentation_groups,
     lut_record,
     read_freesurfer_lut,
@@ -189,18 +189,14 @@ def test_write_lut_file_io(tmp_path):
 # Note : Refinement is actually testing both resampling and smoothing
 # @pytest.mark.skip(reason="Takes too long to run")
 @pytest.mark.xfail(
-    reason=(
-        "Call to resample_to_reference fails "
-        "due to shape issue when using gonzo_roi. " 
-        "Needs to be investigated further."
-    )
+    reason=("Call to resample_to_reference fails due to shape issue when using gonzo_roi. Needs to be investigated further.")
 )
 @pytest.mark.parametrize("seg_type", ["aparc+aseg", "aseg", "wmparc"])
 def test_segmentation_refinement(tmp_path, mri_data_dir: Path, gonzo_roi, seg_type: str):
 
     # Get gonzo_roi from FS_segmentation
     FS_seg_path = mri_data_dir / f"freesurfer/mri_processed_data/freesurfer/sub-01/mri/{seg_type}.mgz"
-    fs_seg = Segmentation.from_file(FS_seg_path) #MRIData type
+    fs_seg = Segmentation.from_file(FS_seg_path)  # MRIData type
     vi = gonzo_roi.voxel_indices(affine=fs_seg.mri.affine)
     v = fs_seg.mri.data[tuple(vi.T)].reshape((*gonzo_roi.shape, -1))
     piece_fs_seg_data = mritk.data.MRIData(data=v, affine=gonzo_roi.affine)
@@ -229,6 +225,7 @@ def test_segmentation_refinement(tmp_path, mri_data_dir: Path, gonzo_roi, seg_ty
 
     mritk.testing.compare_nifti_arrays(result.data, v_ref, data_tolerance=1e-12)
 
+
 @pytest.mark.parametrize("seg_type", ["aparc+aseg", "aseg", "wmparc"])
 def test_csf_segmentation(tmp_path, mri_data_dir: Path, seg_type):
     """Test the CSF segmentation logic by comparing against a known reference."""
@@ -244,6 +241,7 @@ def test_csf_segmentation(tmp_path, mri_data_dir: Path, seg_type):
     result.save(test_output, dtype=np.uint8)
     compare_nifti_images(test_output, ref_output, data_tolerance=1e-12)
 
+
 @patch("mritk.segmentation.Segmentation")
 @patch("mritk.data.MRIData")
 def test_dispatch_resample(mock_seg, mock_mri_data):
@@ -253,7 +251,7 @@ def test_dispatch_resample(mock_seg, mock_mri_data):
 
     mock_seg.from_file.assert_called_once_with(Path("mock_in.nii.gz"), dtype=np.single)
     mock_mri_data.from_file.assert_called_once_with(Path("mock_ref.nii.gz"), dtype=np.single)
-    
+
     inst = mock_seg.from_file.return_value  # Segmentation type instance returned by from_file
     inst.resample_to_reference.assert_called_once_with(mock_mri_data.from_file.return_value)
 

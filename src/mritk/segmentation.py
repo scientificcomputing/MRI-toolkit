@@ -12,14 +12,13 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 from urllib.request import urlretrieve
-from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
 import scipy
 
-from .data import MRIData, apply_affine, load_mri_data
+from .data import MRIData, apply_affine
 from .testing import assert_same_space
 
 logger = logging.getLogger(__name__)
@@ -84,6 +83,7 @@ SEGMENTATION_GROUPS = {
     "subcortical-gm": SUBCORTICAL_GM_RANGES,
 }
 
+
 class Segmentation:
     """
     Base class for MRI segmentations, linking spatial data with anatomical lookup tables.
@@ -130,7 +130,7 @@ class Segmentation:
           Returns:
               Segmentation: An instance of the Segmentation class containing the loaded
               segmentation data and affine transformation.
-          """
+        """
         logger.info(f"Loading segmentation from {seg_path}.")
         mri = MRIData.from_file(seg_path, dtype=np.single)
 
@@ -225,7 +225,7 @@ class Segmentation:
         I_out, J_out, K_out = upsampled_indices.T
         seg_upsampled[I_out, J_out, K_out] = self.mri.data[I_in, J_in, K_in]
 
-        #return Segmentation(data=seg_upsampled, affine=reference_mri.affine, lut=self.lut)
+        # return Segmentation(data=seg_upsampled, affine=reference_mri.affine, lut=self.lut)
         return MRIData(data=seg_upsampled, affine=reference_mri.affine)
 
     def smooth(self, sigma: float, cutoff_score: float = 0.5, **kwargs) -> MRIData:
@@ -289,6 +289,7 @@ class FreeSurferSegmentation(Segmentation):
 
         mri = MRIData.from_file(filepath, dtype=dtype, orient=orient)
         return cls(mri=mri, lut=lut)
+
 
 class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
     """
@@ -355,6 +356,7 @@ class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
         ret["FreeSurfer_ROI"] = ret["ROI"] % 10000
         return ret
 
+
 # @dataclass
 class CSFSegmentation:
     segmentation: MRIData
@@ -371,7 +373,7 @@ class CSFSegmentation:
         csf_mask = MRIData.from_file(csf_mask_path, dtype=bool)
         assert_same_space(segmentation, csf_mask)
         return cls(segmentation=segmentation, csf_mask=csf_mask)
-    
+
     def to_csf_segmentation(self) -> MRIData:
         # Get interpolation operator
         I, J, K = np.where(self.segmentation.data != 0)
@@ -382,6 +384,7 @@ class CSFSegmentation:
         csf_seg[i, j, k] = interp(i, j, k)
 
         return MRIData(data=csf_seg.astype(np.int16), affine=self.csf_mask.affine)
+
 
 def default_segmentation_groups() -> dict[str, list[int]]:
     """

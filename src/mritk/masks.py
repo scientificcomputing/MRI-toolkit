@@ -9,7 +9,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 import numpy as np
-import scipy.interpolate
 import skimage
 
 from .data import MRIData
@@ -204,18 +203,14 @@ def add_arguments(
 def dispatch(args):
     command = args.pop("mask-command")
     if command == "csf":
-
         csf_mask_data = csf_mask(
-            input=MRIData.from_file(args.pop("input")),
-            connectivity=args.pop("connectivity"),
-            use_li=args.pop("use_li")
+            input=MRIData.from_file(args.pop("input")), connectivity=args.pop("connectivity"), use_li=args.pop("use_li")
         )
         csf_mask_data.save(args.pop("output"), dtype=np.uint8)
     elif command == "intracranial":
-
         intracranial_mask_data = intracranial_mask(
             segmentation=MRIData.from_file(args.pop("segmentation_path"), dtype=np.single),
-            csf_mask=MRIData.from_file(args.pop("csf_mask_path"), dtype=np.single)
+            csf_mask=MRIData.from_file(args.pop("csf_mask_path"), dtype=np.single),
         )
         intracranial_mask_data.save(args.pop("output"), dtype=np.uint8)
     else:
