@@ -29,6 +29,7 @@ def main():
         "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-aparc+aseg_refined.nii.gz",
         "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-wmparc_refined.nii.gz",
         "mri-processed/mri_processed_data/sub-01/registered/sub-01_ses-01_T2w_registered.nii.gz",
+        "mri-processed/mri_processed_data/sub-01/registered/sub-01_ses-01_T1w_registered.nii.gz",
         "freesurfer/mri_processed_data/freesurfer/sub-01/mri/aparc+aseg.mgz",
         "freesurfer/mri_processed_data/freesurfer/sub-01/mri/aseg.mgz",
         "freesurfer/mri_processed_data/freesurfer/sub-01/mri/wmparc.mgz",

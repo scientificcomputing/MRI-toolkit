@@ -187,13 +187,11 @@ def test_write_lut_file_io(tmp_path):
 
 
 # Note : Refinement is actually testing both resampling and smoothing
-# @pytest.mark.skip(reason="Takes too long to run")
-@pytest.mark.xfail(
-    reason=("Call to resample_to_reference fails due to shape issue when using gonzo_roi. Needs to be investigated further.")
-)
+# @pytest.mark.xfail(
+#     reason=("Call to resample_to_reference fails due to shape issue when using gonzo_roi. Needs to be investigated further.")
+# )
 @pytest.mark.parametrize("seg_type", ["aparc+aseg", "aseg", "wmparc"])
 def test_segmentation_refinement(tmp_path, mri_data_dir: Path, gonzo_roi, seg_type: str):
-
     # Get gonzo_roi from FS_segmentation
     FS_seg_path = mri_data_dir / f"freesurfer/mri_processed_data/freesurfer/sub-01/mri/{seg_type}.mgz"
     fs_seg = Segmentation.from_file(FS_seg_path)  # MRIData type
@@ -215,7 +213,7 @@ def test_segmentation_refinement(tmp_path, mri_data_dir: Path, gonzo_roi, seg_ty
     piece_fs_seg = Segmentation(mri=piece_fs_seg_data)
     result = piece_fs_seg.resample_to_reference(piece_ref_mri_data)
     smoothed = result.smooth(sigma=smoothing)
-    result.data = smoothed.data
+    result.mri.data = smoothed.mri.data
     result.save(test_output, dtype=np.int32)
 
     ref_output_path = mri_data_dir / f"mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-{seg_type}_refined.nii.gz"
@@ -223,7 +221,7 @@ def test_segmentation_refinement(tmp_path, mri_data_dir: Path, gonzo_roi, seg_ty
     vi = gonzo_roi.voxel_indices(affine=ref_output.affine)
     v_ref = ref_output.data[tuple(vi.T)].reshape((*gonzo_roi.shape, -1))
 
-    mritk.testing.compare_nifti_arrays(result.data, v_ref, data_tolerance=1e-12)
+    mritk.testing.compare_nifti_arrays(result.mri.data, v_ref, data_tolerance=1e-12)
 
 
 @pytest.mark.parametrize("seg_type", ["aparc+aseg", "aseg", "wmparc"])
@@ -264,4 +262,32 @@ def test_dispatch_smoothing(mock_seg):
 
     mock_seg.from_file.assert_called_once_with(Path("mock_in.nii.gz"))
     inst = mock_seg.from_file.return_value  # Segmentation type instance returned by from_file
+    inst.smooth.assert_called_once_with(sigma=1, cutoff_score=0.5)
+
+
+@patch("mritk.segmentation.Segmentation")
+@patch("mritk.data.MRIData")
+def test_dispatch_refine(mock_seg, mock_mri_data):
+    """Test that dispatch correctly routes to segmentation refinement."""
+
+    mritk.cli.main(
+        [
+            "seg",
+            "refine",
+            "-i",
+            "mock_in.nii.gz",
+            "-r",
+            "mock_ref.nii.gz",
+            "-o",
+            "mock_out.nii.gz",
+            "-s",
+            "1",
+        ]
+    )
+
+    mock_seg.from_file.assert_called_once_with(Path("mock_in.nii.gz"))
+    mock_mri_data.from_file.assert_called_once_with(Path("mock_ref.nii.gz"), dtype=np.single)
+
+    inst = mock_seg.from_file.return_value  # Segmentation type instance returned by from_file
+    inst.resample_to_reference.assert_called_once_with(mock_mri_data.from_file.return_value)
     inst.smooth.assert_called_once_with(sigma=1, cutoff_score=0.5)
