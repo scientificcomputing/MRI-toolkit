@@ -214,6 +214,7 @@ def test_segmentation_refinement(tmp_path, mri_data_dir: Path, gonzo_roi, seg_ty
 
     # Output: Refine segmentation from gonzoi_roi segmentation and ref MRI
     test_output = tmp_path / "output_refined.nii.gz"
+
     smoothing = 1
     piece_fs_seg = Segmentation(mri=piece_fs_seg_data)
     result = piece_fs_seg.resample_to_reference(piece_ref_mri_data)
