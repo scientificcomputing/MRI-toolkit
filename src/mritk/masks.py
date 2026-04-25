@@ -12,7 +12,7 @@ import numpy as np
 import skimage
 
 from .data import MRIData
-from .segmentation import Segmentation, CSFSegmentation
+from .segmentation import CSFSegmentation, Segmentation
 from .testing import assert_same_space
 
 
