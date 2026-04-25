@@ -219,7 +219,7 @@ def generate_stats_dataframe_rois(
     metadata: Optional[dict] = None,
 ) -> pd.DataFrame:
     # Verify that segmentation and MRI are in the same space
-    assert_same_space(seg, mri)
+    assert_same_space(seg.mri, mri)
 
     qoi_records = []  # Collects records related to qois
     roi_records = []  # Collects records related to ROIs,
@@ -228,7 +228,7 @@ def generate_stats_dataframe_rois(
     finite_mask = np.isfinite(mri.data)
     for roi in tqdm.rich.tqdm(seg.roi_labels, total=len(seg.roi_labels)):
         # Identify rois in segmentation
-        region_mask = (seg.data == roi) * finite_mask
+        region_mask = (seg.mri.data == roi) * finite_mask
         # print(region_mask.shape)
         region_data = mri.data[region_mask]
         nb_nans = np.isnan(region_data).sum()
@@ -239,7 +239,7 @@ def generate_stats_dataframe_rois(
             {
                 "ROI": roi,
                 "voxel_count": voxelcount,
-                "volume_ml": seg.voxel_ml_volume * voxelcount,
+                "volume_ml": seg.mri.voxel_ml_volume * voxelcount,
                 "num_nan_values": nb_nans,
             }
         )
