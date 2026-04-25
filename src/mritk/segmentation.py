@@ -387,7 +387,7 @@ class CSFSegmentation:
     segmentation: Segmentation
     csf_mask: MRIData
 
-    def __init__(self, segmentation: MRIData, csf_mask: MRIData):
+    def __init__(self, segmentation: Segmentation, csf_mask: MRIData):
         assert_same_space(segmentation, csf_mask)
         self.segmentation = segmentation
         self.csf_mask = csf_mask
@@ -401,11 +401,11 @@ class CSFSegmentation:
 
     def to_csf_segmentation(self) -> MRIData:
         # Get interpolation operator
-        I, J, K = np.where(self.segmentation.data != 0)
-        interp = scipy.interpolate.NearestNDInterpolator(np.array([I, J, K]).T, self.segmentation.data[I, J, K])
+        I, J, K = np.where(self.segmentation.mri.data != 0)
+        interp = scipy.interpolate.NearestNDInterpolator(np.array([I, J, K]).T, self.segmentation.mri.data[I, J, K])
         # Interpolate segmentation values at CSF mask locations
         i, j, k = np.where(self.csf_mask.data != 0)
-        csf_seg = np.zeros_like(self.segmentation.data, dtype=np.int16)
+        csf_seg = np.zeros_like(self.segmentation.mri.data, dtype=np.int16)
         csf_seg[i, j, k] = interp(i, j, k)
 
         return MRIData(data=csf_seg.astype(np.int16), affine=self.csf_mask.affine)
