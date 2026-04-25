@@ -10,9 +10,9 @@ import logging
 import os
 import re
 from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
 from urllib.request import urlretrieve
-from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
@@ -83,6 +83,7 @@ SEGMENTATION_GROUPS = {
     "corpus-callosum": CORPUS_CALLOSUM,
     "subcortical-gm": SUBCORTICAL_GM_RANGES,
 }
+
 
 @dataclass
 class Segmentation:
