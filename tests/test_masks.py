@@ -20,6 +20,7 @@ from mritk.masks import (
     intracranial_mask,
     largest_island,
 )
+from mritk.segmentation import Segmentation
 from mritk.testing import compare_nifti_images
 
 
@@ -154,7 +155,7 @@ def test_intracranial_mask_io(tmp_path):
     seg_data[4:6, 4:6, 4:6] = 1.0
     nib.save(nib.Nifti1Image(seg_data, affine), seg_path)
 
-    result = intracranial_mask(segmentation=MRIData(seg_data, affine), csf_mask=MRIData(csf_data, affine))
+    result = intracranial_mask(segmentation=Segmentation(mri=MRIData(seg_data, affine)), csf_mask=MRIData(csf_data, affine))
     result.save(out_path, dtype=np.uint8)
 
     # Verify the file was physically saved to the filesystem
@@ -215,7 +216,7 @@ def test_intracranial_mask(tmp_path, mri_data_dir: Path):
     ref_output = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-intracranial_binary.nii.gz"
     test_output = tmp_path / "output_seg-intracranial_binary.nii.gz"
 
-    input_segmentation = mritk.data.MRIData.from_file(segmentation_path, dtype=np.single)
+    input_segmentation = mritk.segmentation.Segmentation.from_file(segmentation_path, dtype=np.single)
     input_csf_mask = mritk.data.MRIData.from_file(csf_mask_path, dtype=np.single)
 
     result = intracranial_mask(segmentation=input_segmentation, csf_mask=input_csf_mask)
