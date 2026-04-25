@@ -389,15 +389,15 @@ class CSFSegmentation:
     csf_mask: MRIData
 
     def __init__(self, segmentation: Segmentation, csf_mask: MRIData):
-        assert_same_space(segmentation, csf_mask)
+        assert_same_space(segmentation.mri, csf_mask)
         self.segmentation = segmentation
         self.csf_mask = csf_mask
 
     @classmethod
     def from_file(cls, segmentation_path: Path, csf_mask_path: Path) -> "CSFSegmentation":
-        segmentation = MRIData.from_file(segmentation_path, dtype=np.int16)
+        segmentation = Segmentation.from_file(segmentation_path, dtype=np.int16)
         csf_mask = MRIData.from_file(csf_mask_path, dtype=bool)
-        assert_same_space(segmentation, csf_mask)
+        assert_same_space(segmentation.mri, csf_mask)
         return cls(segmentation=segmentation, csf_mask=csf_mask)
 
     def to_csf_segmentation(self) -> MRIData:
