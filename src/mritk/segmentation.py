@@ -12,6 +12,7 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 from urllib.request import urlretrieve
+from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
@@ -83,7 +84,7 @@ SEGMENTATION_GROUPS = {
     "subcortical-gm": SUBCORTICAL_GM_RANGES,
 }
 
-
+@dataclass
 class Segmentation:
     """
     Base class for MRI segmentations, linking spatial data with anatomical lookup tables.
@@ -92,11 +93,6 @@ class Segmentation:
     integer labels representing Regions of Interest (ROIs). It links these numerical
     labels to a descriptive Lookup Table (LUT).
     """
-
-    mri: MRIData
-    rois: np.ndarray
-    lut: pd.DataFrame
-    label_name: str
 
     def __init__(self, mri: MRIData, lut: pd.DataFrame | None = None):
         """
@@ -386,9 +382,9 @@ class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
         return ret
 
 
-# @dataclass
+@dataclass
 class CSFSegmentation:
-    segmentation: MRIData
+    segmentation: Segmentation
     csf_mask: MRIData
 
     def __init__(self, segmentation: MRIData, csf_mask: MRIData):
