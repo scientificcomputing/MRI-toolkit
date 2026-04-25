@@ -235,13 +235,14 @@ def test_csf_segmentation(tmp_path, mri_data_dir: Path, gonzo_roi, seg_type):
     vi = gonzo_roi.voxel_indices(affine=input_seg.affine)
     v = input_seg.data[tuple(vi.T)].reshape(gonzo_roi.shape)
     piece_seg_data = mritk.data.MRIData(data=v, affine=gonzo_roi.affine)
+    piece_seg = Segmentation(mri=piece_seg_data)
 
     input_csf_mask = MRIData.from_file(input_csf_mask_path, dtype=np.single)
     vi = gonzo_roi.voxel_indices(affine=input_csf_mask.affine)
     v = input_csf_mask.data[tuple(vi.T)].reshape(gonzo_roi.shape)
     piece_csf_mask_data = mritk.data.MRIData(data=v, affine=gonzo_roi.affine)
 
-    result = CSFSegmentation(segmentation=piece_seg_data, csf_mask=piece_csf_mask_data).to_csf_segmentation()
+    result = CSFSegmentation(segmentation=piece_seg, csf_mask=piece_csf_mask_data).to_csf_segmentation()
 
     ref_output = MRIData.from_file(ref_output_path, dtype=np.single)
     vi = gonzo_roi.voxel_indices(affine=ref_output.affine)

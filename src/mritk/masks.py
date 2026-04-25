@@ -12,7 +12,7 @@ import numpy as np
 import skimage
 
 from .data import MRIData
-from .segmentation import CSFSegmentation
+from .segmentation import Segmentation, CSFSegmentation
 from .testing import assert_same_space
 
 
@@ -133,7 +133,7 @@ def compute_intracranial_mask_array(csf_mask_array: np.ndarray, segmentation_arr
     return ~opened_background
 
 
-def intracranial_mask(segmentation: MRIData, csf_mask: MRIData) -> MRIData:
+def intracranial_mask(segmentation: Segmentation, csf_mask: MRIData) -> MRIData:
     """
     I/O wrapper for generating and saving an intracranial mask from NIfTI files.
 
@@ -151,10 +151,10 @@ def intracranial_mask(segmentation: MRIData, csf_mask: MRIData) -> MRIData:
     csf_seg = CSFSegmentation(segmentation, csf_mask).to_csf_segmentation()
 
     # Validate spatial alignment before array operations
-    assert_same_space(csf_seg, segmentation)
+    assert_same_space(csf_seg, segmentation.mri)
 
-    mask_data = compute_intracranial_mask_array(csf_seg.data, segmentation.data)
-    mri_data = MRIData(data=mask_data, affine=segmentation.affine)
+    mask_data = compute_intracranial_mask_array(csf_seg.data, segmentation.mri.data)
+    mri_data = MRIData(data=mask_data, affine=segmentation.mri.affine)
 
     return mri_data
 
