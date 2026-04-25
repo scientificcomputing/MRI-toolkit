@@ -122,22 +122,48 @@ class Segmentation:
         self.label_name = "Label" if "Label" in self.lut.columns else self.lut.columns[0]
 
     @classmethod
-    def from_file(cls, seg_path: Path) -> "Segmentation":
+    def from_file(
+        cls, seg_path: Path, dtype: npt.DTypeLike | None = None, orient: bool = True, lut_path: Path | None = None
+    ) -> "Segmentation":
         """Loads a Segmentation from a NIfTI file.
 
         Args:
               seg_path (Path): The file path to the segmentation NIfTI file.
+              dtype (npt.DTypeLike, optional): The data type for the segmentation data. Defaults to None.
+              orient (bool, optional): Whether to orient the data. Defaults to True.
+              lut_path (Path, optional): The file path to the lookup table. Defaults to None.
           Returns:
               Segmentation: An instance of the Segmentation class containing the loaded
               segmentation data and affine transformation.
         """
         logger.info(f"Loading segmentation from {seg_path}.")
-        mri = MRIData.from_file(seg_path, dtype=np.single)
+        mri = MRIData.from_file(seg_path, dtype=dtype, orient=orient)
 
-        rois = np.unique(mri.data[mri.data > 0])
-        lut = pd.DataFrame({"Label": rois}, index=rois)
+        if lut_path is None and seg_path.with_suffix(".json").exists():
+            lut_path = seg_path.with_suffix(".json")
+
+        if lut_path is not None:
+            logger.info(f"Loading LUT from {lut_path}.")
+            lut = pd.read_json(lut_path)
+        else:
+            rois = np.unique(mri.data[mri.data > 0])
+            lut = pd.DataFrame({"Label": rois}, index=rois)
 
         return cls(mri=mri, lut=lut)
+
+    def save(self, output_path: Path, dtype: npt.DTypeLike | None = None, intent_code: int = 1006, lut_path: Path | None = None):
+        """Saves the Segmentation to a NIfTI file.
+
+        Args:
+            output_path (Path): The file path where the segmentation will be saved.
+            dtype (npt.DTypeLike, optional): The data type for the saved segmentation data. Defaults to None.
+            intent_code (int, optional): The NIfTI intent code to set in the header. Defaults to 1006 (NIFTI_INTENT_LABEL).
+        """
+        self.mri.save(output_path, dtype=dtype, intent_code=intent_code)
+        if lut_path is not None:
+            self.lut.to_json(lut_path, orient="index")
+        else:
+            self.lut.to_json(output_path.with_suffix(".json"), orient="index")
 
     def set_lut(self, lut: pd.DataFrame, label_column: str = "Label"):
         """Sets the Lookup Table (LUT) for the segmentation, ensuring it matches the present ROIs.
@@ -145,7 +171,8 @@ class Segmentation:
         Args:
             lut (pd.DataFrame): A pandas DataFrame mapping numerical labels
                 to their descriptions. If None, a default numerical mapping is generated. Defaults to None.
-            label_column (str, optional): The name of the column in the LUT that contains the label descriptions. Defaults to "Label".
+            label_column (str, optional): The name of the column in the LUT that contains the label
+                descriptions. Defaults to "Label".
         """
 
         self.lut = lut
@@ -188,7 +215,7 @@ class Segmentation:
 
         return self.lut.loc[self.lut.index.isin(rois), [self.label_name]].rename_axis("ROI").reset_index()
 
-    def resample_to_reference(self, reference_mri: MRIData):
+    def resample_to_reference(self, reference_mri: MRIData) -> "Segmentation":
         """
         Resamples the segmentation to match the spatial dimensions and resolution of a reference MRI.
 
@@ -226,9 +253,10 @@ class Segmentation:
         seg_upsampled[I_out, J_out, K_out] = self.mri.data[I_in, J_in, K_in]
 
         # return Segmentation(data=seg_upsampled, affine=reference_mri.affine, lut=self.lut)
-        return MRIData(data=seg_upsampled, affine=reference_mri.affine)
+        mri = MRIData(data=seg_upsampled, affine=reference_mri.affine)
+        return Segmentation(mri=mri, lut=self.lut)
 
-    def smooth(self, sigma: float, cutoff_score: float = 0.5, **kwargs) -> MRIData:
+    def smooth(self, sigma: float, cutoff_score: float = 0.5, **kwargs) -> "Segmentation":
         """
         Applies Gaussian smoothing to the segmentation labels to create a soft probabilistic map.
 
@@ -253,7 +281,8 @@ class Segmentation:
         delete_scores = (high_scores < cutoff_score) * (self.mri.data == 0)
         smoothed_rois[delete_scores] = 0
 
-        return MRIData(data=smoothed_rois, affine=self.mri.affine)
+        mri = MRIData(data=smoothed_rois, affine=self.mri.affine)
+        return Segmentation(mri=mri, lut=self.lut)
 
 
 class FreeSurferSegmentation(Segmentation):
@@ -607,14 +636,17 @@ def dispatch(args):
         reference_mri = MRIData.from_file(args.pop("reference"))
         resampled_seg = input_seg.resample_to_reference(reference_mri)
         resampled_seg.save(args.pop("output"), dtype=np.int32)
+
     elif command == "smooth":
         smoothed = Segmentation.from_file(args.pop("input")).smooth(sigma=args.pop("sigma"), cutoff_score=args.pop("cutoff"))
         smoothed.save(args.pop("output"), dtype=np.int32)
+
     elif command == "refine":
         seg = Segmentation.from_file(args.pop("input"))
         refined = seg.resample_to_reference(MRIData.from_file(args.pop("reference")))
         smoothed = refined.smooth(sigma=args.pop("smooth"))
-        refined.data = np.where(smoothed.data > 0, smoothed.data, refined.data)
+        refined.mri.data = np.where(smoothed.mri.data > 0, smoothed.mri.data, refined.mri.data)
         refined.save(args.pop("output"), dtype=np.int32)
+
     else:
         raise ValueError(f"Unknown segmentation command: {command}")
