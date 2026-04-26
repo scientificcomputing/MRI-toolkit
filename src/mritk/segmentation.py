@@ -95,8 +95,7 @@ class Segmentation:
     labels to a descriptive Lookup Table (LUT).
 
     Args:
-        data (np.ndarray): 3D numpy array containing integer ROI labels.
-        affine (np.ndarray): 4x4 affine transformation matrix mapping voxel indices to physical space.
+        mri (MRIData): The MRIData object containing the segmentation volume and affine.
         lut (Optional[pd.DataFrame], optional): A pandas DataFrame mapping numerical labels
             to their descriptions. If None, a default numerical mapping is generated. Defaults to None.
     """
@@ -386,6 +385,19 @@ class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
 
 @dataclass
 class CSFSegmentation:
+    """
+    A specialized segmentation class for isolating Cerebrospinal Fluid (CSF) regions.
+
+    This class combines a standard anatomical segmentation (e.g., FreeSurfer) with a
+    binary mask specifically targeting CSF regions. It provides functionality to
+    generate a new segmentation volume where only the CSF-labeled voxels are retained,
+    while all other voxels are set to zero.
+
+    Args:
+        segmentation (Segmentation): The anatomical segmentation containing the full set of labels.
+        csf_mask (MRIData): A binary mask isolating the CSF regions, aligned in the same space as the segmentation.
+    """
+
     segmentation: Segmentation
     csf_mask: MRIData
 
@@ -400,6 +412,8 @@ class CSFSegmentation:
         return cls(segmentation=segmentation, csf_mask=csf_mask)
 
     def to_csf_segmentation(self) -> MRIData:
+        """Generates a new MRIData object containing only the CSF-labeled
+        voxels from the original segmentation."""
         # Get interpolation operator
         I, J, K = np.where(self.segmentation.mri.data != 0)
         interp = scipy.interpolate.NearestNDInterpolator(np.array([I, J, K]).T, self.segmentation.mri.data[I, J, K])
