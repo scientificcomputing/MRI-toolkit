@@ -55,8 +55,9 @@ def test_load_mri_data_invalid_suffix(mri_data_dir):
 @pytest.mark.parametrize("orient", (True, False))
 def test_load_Segmentation(tmp_path, mri_data_dir, orient: bool):
     input_file = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-aparc+aseg_refined.nii.gz"
-    seg = Segmentation.from_file(input_file)
-    assert seg.data.dtype == int
+    seg = Segmentation.from_file(input_file, dtype=np.int32)
+
+    assert seg.mri.data.dtype == np.int32
     mri = MRIData.from_file(input_file, dtype=np.single, orient=orient)
     output_file = tmp_path.with_suffix(".nii.gz")
     mri.save(output_file, dtype=np.single)

@@ -21,7 +21,7 @@ def example_segmentation() -> Segmentation:
     base = np.array([0, 1, 2, 3], dtype=float)
     seg = np.tile(base, (100, 1))
 
-    return Segmentation(seg, affine=np.eye(4))
+    return Segmentation(MRIData(data=seg, affine=np.eye(4)))
 
 
 @pytest.fixture

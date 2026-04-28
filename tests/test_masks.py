@@ -12,7 +12,15 @@ import nibabel as nib
 import numpy as np
 
 import mritk.cli
-from mritk.masks import compute_csf_mask_array, compute_intracranial_mask_array, csf_mask, intracranial_mask, largest_island
+from mritk.data import MRIData
+from mritk.masks import (
+    compute_csf_mask_array,
+    compute_intracranial_mask_array,
+    csf_mask,
+    intracranial_mask,
+    largest_island,
+)
+from mritk.segmentation import Segmentation
 from mritk.testing import compare_nifti_images
 
 
@@ -118,7 +126,8 @@ def test_csf_mask_io(tmp_path):
     nii = nib.Nifti1Image(data, np.eye(4))
     nib.save(nii, in_path)
 
-    result = csf_mask(input=in_path, use_li=True)
+    input_data = mritk.data.MRIData.from_file(in_path, dtype=np.single)
+    result = csf_mask(input=input_data, use_li=True)
     result.save(out_path, dtype=np.uint8)
 
     # Verify the file was physically saved to the filesystem
@@ -146,7 +155,7 @@ def test_intracranial_mask_io(tmp_path):
     seg_data[4:6, 4:6, 4:6] = 1.0
     nib.save(nib.Nifti1Image(seg_data, affine), seg_path)
 
-    result = intracranial_mask(csf_segmentation_path=csf_path, segmentation_path=seg_path)
+    result = intracranial_mask(segmentation=Segmentation(mri=MRIData(seg_data, affine)), csf_mask=MRIData(csf_data, affine))
     result.save(out_path, dtype=np.uint8)
 
     # Verify the file was physically saved to the filesystem
@@ -156,32 +165,35 @@ def test_intracranial_mask_io(tmp_path):
 
 
 @patch("mritk.masks.csf_mask")
-def test_dispatch_csf_mask(mock_csf_mask):
+@patch("mritk.data.MRIData.from_file")
+def test_dispatch_csf_mask(mock_from_file, mock_csf_mask):
     """Test the CLI dispatch for the CSF mask command."""
-    mritk.cli.main(["mask", "csf", "-i", "input.nii.gz", "--output", "mock_out.nii.gz", "--use-li", "--connectivity", "2"])
+    mritk.cli.main(["mask", "csf", "-i", "input.nii.gz", "-o", "mock_out.nii.gz", "--use-li", "--connectivity", "2"])
 
-    mock_csf_mask.assert_called_once_with(input=Path("input.nii.gz"), connectivity=2, use_li=True)
+    input_data = mock_from_file(Path("input.nii.gz"), dtype=np.single)
+    mock_csf_mask.assert_called_once_with(input=input_data, connectivity=2, use_li=True)
 
 
 @patch("mritk.masks.intracranial_mask")
-def test_dispatch_intracranial_mask(mock_intracranial_mask):
+@patch("mritk.data.MRIData.from_file")
+def test_dispatch_intracranial_mask(mock_from_file, mock_intracranial_mask):
     """Test the CLI dispatch for the intracranial mask command."""
     mritk.cli.main(
         [
             "mask",
             "intracranial",
-            "--csf-segmentation-path",
-            "csf_segmentation.nii.gz",
             "--segmentation-path",
             "segmentation.nii.gz",
+            "--csf-mask-path",
+            "csf_mask.nii.gz",
             "-o",
             "ic_mask.nii.gz",
         ]
     )
 
-    mock_intracranial_mask.assert_called_once_with(
-        csf_segmentation_path=Path("csf_segmentation.nii.gz"), segmentation_path=Path("segmentation.nii.gz")
-    )
+    seg_data = mock_from_file(Path("segmentation.nii.gz"), dtype=np.single)
+    csf_data = mock_from_file(Path("csf_mask.nii.gz"), dtype=np.single)
+    mock_intracranial_mask.assert_called_once_with(segmentation=seg_data, csf_mask=csf_data)
 
 
 def test_csf_mask(tmp_path, mri_data_dir: Path):
@@ -191,18 +203,22 @@ def test_csf_mask(tmp_path, mri_data_dir: Path):
     ref_output = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf_binary.nii.gz"
     test_output = tmp_path / "output_seg-csf_binary.nii.gz"
 
-    result = csf_mask(input=input_T2w_path, use_li=use_li)
+    input_T2w = mritk.data.MRIData.from_file(input_T2w_path, dtype=np.single)
+    result = csf_mask(input=input_T2w, use_li=use_li)
     result.save(test_output, dtype=np.uint8)
     compare_nifti_images(test_output, ref_output, data_tolerance=1e-12)
 
 
 def test_intracranial_mask(tmp_path, mri_data_dir: Path):
-    csf_segmentation_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf-aseg.nii.gz"
+    csf_mask_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-csf_binary.nii.gz"
     segmentation_path = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-wmparc_refined.nii.gz"
 
     ref_output = mri_data_dir / "mri-processed/mri_processed_data/sub-01/segmentations/sub-01_seg-intracranial_binary.nii.gz"
     test_output = tmp_path / "output_seg-intracranial_binary.nii.gz"
 
-    result = intracranial_mask(csf_segmentation_path=csf_segmentation_path, segmentation_path=segmentation_path)
+    input_segmentation = mritk.segmentation.Segmentation.from_file(segmentation_path, dtype=np.single)
+    input_csf_mask = mritk.data.MRIData.from_file(csf_mask_path, dtype=np.single)
+
+    result = intracranial_mask(segmentation=input_segmentation, csf_mask=input_csf_mask)
     result.save(test_output, dtype=np.uint8)
     compare_nifti_images(test_output, ref_output, data_tolerance=1e-12)
