@@ -26,6 +26,7 @@ dependencies = [
   "scikit-image",
   "pydicom",
   "dcm2niix",
+  "matplotlib>=3.10.9",
 ]
 
 [project.optional-dependencies]

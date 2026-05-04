@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.request import urlretrieve
 
+import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -102,7 +103,7 @@ class Segmentation:
 
     mri: MRIData
     lut: pd.DataFrame
-    label_name: str
+    # label_name: str
     rois: np.ndarray
 
     def __init__(self, mri: MRIData, lut: pd.DataFrame | None = None):
@@ -110,17 +111,35 @@ class Segmentation:
         # Extract all unique active regions (ignoring 0/background)
         self.rois = np.unique(self.mri.data[self.mri.data > 0])
 
+        # We assume that the label is given by the index in the lut
         if lut is None:
-            self.lut = pd.DataFrame({"Label": self.rois}, index=self.rois)
+            self.lut = pd.DataFrame(
+                {
+                    "label": self.rois.astype(int),
+                    "description": self.rois.astype(int).astype(str),
+                }
+            ).set_index("label")
         else:
-            self.lut = lut
+            self.lut = lut.rename_axis("label")
+
+        self.lut = self._preprocess_lut(self.lut)
 
         # Identify the primary label column dynamically
-        self.label_name = "Label" if "Label" in self.lut.columns else self.lut.columns[0]
+        # self.label_name = (
+        #     "Label" if "Label" in self.lut.columns else self.lut.columns[0]
+        # )
+
+    def _preprocess_lut(self, lut: pd.DataFrame) -> pd.DataFrame:
+        # dummy function for subclasses to override if they need to preprocess the LUT after loading
+        return lut
 
     @classmethod
     def from_file(
-        cls, seg_path: Path, dtype: npt.DTypeLike | None = None, orient: bool = True, lut_path: Path | None = None
+        cls,
+        seg_path: Path,
+        dtype: npt.DTypeLike | None = None,
+        orient: bool = True,
+        lut_path: Path | None = None,
     ) -> "Segmentation":
         """Loads a Segmentation from a NIfTI file.
 
@@ -148,7 +167,13 @@ class Segmentation:
 
         return cls(mri=mri, lut=lut)
 
-    def save(self, output_path: Path, dtype: npt.DTypeLike | None = None, intent_code: int = 1006, lut_path: Path | None = None):
+    def save(
+        self,
+        output_path: Path,
+        dtype: npt.DTypeLike | None = None,
+        intent_code: int = 1006,
+        lut_path: Path | None = None,
+    ):
         """Saves the Segmentation to a NIfTI file.
 
         Args:
@@ -157,25 +182,27 @@ class Segmentation:
             intent_code (int, optional): The NIfTI intent code to set in the header. Defaults to 1006 (NIFTI_INTENT_LABEL).
         """
         self.mri.save(output_path, dtype=dtype, intent_code=intent_code)
-        if lut_path is not None:
-            self.lut.to_json(lut_path, orient="index")
-        else:
-            self.lut.to_json(output_path.with_suffix(".json"), orient="index")
 
-    def set_lut(self, lut: pd.DataFrame, label_column: str = "Label"):
+        if lut_path is not None:
+            write_lut(lut_path, self.lut)
+        else:
+            filename = output_path.name.removesuffix("".join(output_path.suffixes))
+            write_lut(output_path.parent.joinpath(filename).with_suffix(".csv"), self.lut)
+
+    def set_lut(self, lut: pd.DataFrame, label_column: str | None = None):
         """Sets the Lookup Table (LUT) for the segmentation, ensuring it matches the present ROIs.
 
         Args:
             lut (pd.DataFrame): A pandas DataFrame mapping numerical labels
                 to their descriptions. If None, a default numerical mapping is generated. Defaults to None.
             label_column (str, optional): The name of the column in the LUT that contains the label
-                descriptions. Defaults to "Label".
+                descriptions which will be used as the index. If None, use the current index. Defaults to None,
         """
 
         self.lut = lut
-        self.label_name = label_column
-        if self.label_name not in self.lut.columns:
-            raise ValueError(f"Specified label column '{self.label_name}' not found in LUT.")
+        if label_column is not None:
+            self.lut = lut.set_index(label_column)
+        self.lut = self.lut.rename_axis("label")
 
     @property
     def num_rois(self) -> int:
@@ -210,7 +237,7 @@ class Segmentation:
         if not np.isin(rois, self.rois).all():
             raise ValueError("Some of the provided ROIs are not present in the segmentation.")
 
-        return self.lut.loc[self.lut.index.isin(rois), [self.label_name]].rename_axis("ROI").reset_index()
+        return self.lut.loc[rois]
 
     def resample_to_reference(self, reference_mri: MRIData) -> "Segmentation":
         """
@@ -292,7 +319,11 @@ class FreeSurferSegmentation(Segmentation):
 
     @classmethod
     def from_file(
-        cls, filepath: Path | str, dtype: npt.DTypeLike | None = None, orient: bool = True, lut_path: Path | None = None
+        cls,
+        filepath: Path | str,
+        dtype: npt.DTypeLike | None = None,
+        orient: bool = True,
+        lut_path: Path | None = None,
     ) -> "FreeSurferSegmentation":
         """
         Load a FreeSurfer segmentation from a NIfTI file, automatically resolving the LUT.
@@ -316,6 +347,10 @@ class FreeSurferSegmentation(Segmentation):
         mri = MRIData.from_file(filepath, dtype=dtype, orient=orient)
         return cls(mri=mri, lut=lut)
 
+    def _preprocess_lut(self, lut: pd.DataFrame) -> pd.DataFrame:
+        # FreeSurfer LUTs index by the "label" column
+        return lut.query("label < 10000")  # Most used FreeSurfer labels
+
 
 class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
     """
@@ -325,6 +360,23 @@ class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
     to indicate broad tissue categories (e.g., Parenchyma, CSF, Dura) while preserving
     the base FreeSurfer anatomical label (modulus 10000).
     """
+
+    def _preprocess_lut(self, lut: pd.DataFrame) -> pd.DataFrame:
+        lut = super()._preprocess_lut(lut)
+
+        # Add CSF and dura tags
+        base_lut = lut.copy()
+        for i, tissue_type in enumerate(["CSF", "Dura"]):
+            tissue_lut = base_lut.copy()
+            tissue_lut.index += 10000 if tissue_type == "CSF" else 20000
+            tissue_lut["description"] = tissue_lut["description"] + f"-{tissue_type}"
+            if np.all(np.isin(["R", "G", "B"], base_lut.columns)):
+                for col in ["R", "G", "B"]:
+                    tissue_lut[col] = np.clip(
+                        tissue_lut[col] * (0.5 + 0.5 * i), 0, 1
+                    )  # Shift colors towards blue for CSF and red for Dura
+            lut = pd.concat([lut, tissue_lut])
+        return lut
 
     def get_roi_labels(self, rois: npt.NDArray[np.int32] | None = None) -> pd.DataFrame:
         """
@@ -338,21 +390,12 @@ class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
             pd.DataFrame: A DataFrame mapping the requested ROIs to their base descriptions
             and their computed 'tissue_type'.
         """
-        rois = self.rois if rois is None else rois
 
-        # Use modulus 10000 to extract the base anatomical label from the superclass LUT
-        freesurfer_labels = super().get_roi_labels(rois % 10000).rename(columns={"ROI": "FreeSurfer_ROI"})
+        roi_labels = super().get_roi_labels(rois)
 
-        # Get the broad tissue categories based on the numerical offsets
+        # Add column specifying tissue_type:
         tissue_type = self.get_tissue_type(rois)
-
-        # Merge the base anatomical names with the tissue types
-        return freesurfer_labels.merge(
-            tissue_type,
-            left_on="FreeSurfer_ROI",
-            right_on="FreeSurfer_ROI",
-            how="outer",
-        ).drop(columns=["FreeSurfer_ROI"])[["ROI", self.label_name, "tissue_type"]]
+        return pd.merge(roi_labels, tissue_type, on="label")
 
     def get_tissue_type(self, rois: npt.NDArray[np.int32] | None = None) -> pd.DataFrame:
         """
@@ -372,15 +415,14 @@ class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
         """
         rois = self.rois if rois is None else rois
 
-        tissue_types = pd.Series(
-            data=np.where(rois < 10000, "Parenchyma", np.where(rois < 20000, "CSF", "Dura")),
-            index=rois,
-            name="tissue_type",
-        )
+        tissue_types = pd.DataFrame(
+            {
+                "label": rois,
+                "tissue_type": np.where(rois < 10000, "Parenchyma", np.where(rois < 20000, "CSF", "Dura")),
+            }
+        ).set_index("label")
 
-        ret = pd.DataFrame(tissue_types, columns=["tissue_type"]).rename_axis("ROI").reset_index()
-        ret["FreeSurfer_ROI"] = ret["ROI"] % 10000
-        return ret
+        return tissue_types
 
 
 @dataclass
@@ -574,15 +616,43 @@ def write_lut(filename: Path, table: pd.DataFrame):
     """
     newtable = table.copy()
 
-    # Re-scale RGB values to [0, 255]
-    for col in ["R", "G", "B"]:
-        newtable[col] = (newtable[col] * 255).astype(int)
+    if np.all(np.isin(["R", "G", "B"], table.columns)):
+        # Re-scale RGB values to [0, 255]
+        for col in ["R", "G", "B"]:
+            newtable[col] = (newtable[col] * 255).astype(int)
 
-    # Reverse Alpha inversion and scale to [0, 255]
-    newtable["A"] = 255 - (newtable["A"] * 255).astype(int)
+        # Reverse Alpha inversion and scale to [0, 255]
+        newtable["A"] = 255 - (newtable["A"] * 255).astype(int)
 
     # Save as tab-separated values without headers or indices
-    newtable.to_csv(filename, sep="\t", index=False, header=False)
+    newtable.to_csv(filename, sep="\t", index=True, header=False)
+
+
+def procedural_freesurfer_lut(labels: list, descriptions: list, cmap: str = "Set1") -> pd.DataFrame:
+    """
+    Generates a FreeSurfer compatible lut with colors for each label in a procedural manner
+
+    Args:
+        labels (list): list of labels to include in the lut
+        descriptions (list): list of descriptions associated to each label
+        cmap (str, optional): Colormap for label regions. Defaults to "hsv".
+
+    Returns:
+        pd.DataFrame: DataFrame indexed by the label, with RGBA columns
+    """
+    assert len(labels) == len(descriptions), "Label and descriptions lists must have same length"
+    # Get evenly spaced values between 0 and 1 based on the number of labels
+    color_indices = np.linspace(0, 0.95, len(labels))
+
+    # Sample a colormap
+    rgb_float = plt.get_cmap(cmap)(color_indices)
+
+    # Create the DataFrame
+    df_colors = pd.DataFrame(rgb_float, columns=["R", "G", "B", "A"], index=labels)
+    df_colors.index.name = "label"
+    df_colors["description"] = descriptions
+    lut = df_colors[["description", "R", "G", "B", "A"]]
+    return lut
 
 
 def add_arguments(
@@ -592,7 +662,9 @@ def add_arguments(
     subparser = parser.add_subparsers(dest="seg-command", help="Commands for segmentation processing")
 
     resample_parser = subparser.add_parser(
-        "resample", help="Resample a segmentation to match the space of a reference MRI", formatter_class=parser.formatter_class
+        "resample",
+        help="Resample a segmentation to match the space of a reference MRI",
+        formatter_class=parser.formatter_class,
     )
     resample_parser.add_argument("-i", "--input", type=Path, help="Path to the input segmentation NIfTI file")
     resample_parser.add_argument(
@@ -602,19 +674,43 @@ def add_arguments(
         help="Path to the reference MRI \
         - usually a registered T1 weighted anatomical scan",
     )
-    resample_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the resampled segmentation")
+    resample_parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        help="Desired output path for the resampled segmentation",
+    )
 
     smooth_parser = subparser.add_parser(
         "smooth",
         help="Apply Gaussian smoothing to a segmentation to create a soft probabilistic map",
         formatter_class=parser.formatter_class,
     )
-    smooth_parser.add_argument("-i", "--input", type=Path, help="Path to the input (refined) segmentation NIfTI file")
-    smooth_parser.add_argument("-s", "--sigma", type=float, help="Standard deviation for the Gaussian kernel used in smoothing")
     smooth_parser.add_argument(
-        "-c", "--cutoff", type=float, default=0.5, help="Cutoff score to remove low-confidence voxels (default: 0.5)"
+        "-i",
+        "--input",
+        type=Path,
+        help="Path to the input (refined) segmentation NIfTI file",
     )
-    smooth_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the smoothed segmentation")
+    smooth_parser.add_argument(
+        "-s",
+        "--sigma",
+        type=float,
+        help="Standard deviation for the Gaussian kernel used in smoothing",
+    )
+    smooth_parser.add_argument(
+        "-c",
+        "--cutoff",
+        type=float,
+        default=0.5,
+        help="Cutoff score to remove low-confidence voxels (default: 0.5)",
+    )
+    smooth_parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        help="Desired output path for the smoothed segmentation",
+    )
 
     refine_parser = subparser.add_parser(
         "refine",
@@ -629,8 +725,18 @@ def add_arguments(
         help="Path to the reference MRI \
         - usually a registered T1 weighted anatomical scan",
     )
-    refine_parser.add_argument("-s", "--smooth", type=float, help="Standard deviation for the Gaussian kernel used in smoothing")
-    refine_parser.add_argument("-o", "--output", type=Path, help="Desired output path for the refined segmentation")
+    refine_parser.add_argument(
+        "-s",
+        "--smooth",
+        type=float,
+        help="Standard deviation for the Gaussian kernel used in smoothing",
+    )
+    refine_parser.add_argument(
+        "-o",
+        "--output",
+        type=Path,
+        help="Desired output path for the refined segmentation",
+    )
 
     if extra_args_cb is not None:
         extra_args_cb(resample_parser)
