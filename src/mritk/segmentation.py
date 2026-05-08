@@ -103,7 +103,7 @@ class Segmentation:
 
     mri: MRIData
     lut: pd.DataFrame
-    # label_name: str
+    label_name: str
     rois: np.ndarray
 
     def __init__(self, mri: MRIData, lut: pd.DataFrame | None = None):
@@ -111,23 +111,22 @@ class Segmentation:
         # Extract all unique active regions (ignoring 0/background)
         self.rois = np.unique(self.mri.data[self.mri.data > 0])
 
-        # We assume that the label is given by the index in the lut
-        if lut is None:
+        # Set up the lut to be indexed by the roi label
+        if lut is not None:
+            self.lut = lut
+            if lut.index.name is None:
+                self.label_name = "label" if "label" in self.lut.columns else self.lut.columns[0]
+                self.lut = self.lut.set_index(self.label_name)
+        elif lut is None:
             self.lut = pd.DataFrame(
                 {
                     "label": self.rois.astype(int),
                     "description": self.rois.astype(int).astype(str),
                 }
             ).set_index("label")
-        else:
-            self.lut = lut.rename_axis("label")
 
+        self.label_name = self.lut.index.name
         self.lut = self._preprocess_lut(self.lut)
-
-        # Identify the primary label column dynamically
-        # self.label_name = (
-        #     "Label" if "Label" in self.lut.columns else self.lut.columns[0]
-        # )
 
     def _preprocess_lut(self, lut: pd.DataFrame) -> pd.DataFrame:
         # dummy function for subclasses to override if they need to preprocess the LUT after loading
@@ -155,15 +154,14 @@ class Segmentation:
         logger.info(f"Loading segmentation from {seg_path}.")
         mri = MRIData.from_file(seg_path, dtype=dtype, orient=orient)
 
-        if lut_path is None and seg_path.with_suffix(".json").exists():
-            lut_path = seg_path.with_suffix(".json")
+        if lut_path is None and seg_path.with_suffix(".csv").exists():
+            lut_path = seg_path.with_suffix(".csv")
 
         if lut_path is not None:
             logger.info(f"Loading LUT from {lut_path}.")
-            lut = pd.read_json(lut_path)
+            lut = pd.read_csv(lut_path)
         else:
-            rois = np.unique(mri.data[mri.data > 0])
-            lut = pd.DataFrame({"Label": rois}, index=rois)
+            lut = None
 
         return cls(mri=mri, lut=lut)
 
@@ -202,7 +200,10 @@ class Segmentation:
         self.lut = lut
         if label_column is not None:
             self.lut = lut.set_index(label_column)
-        self.lut = self.lut.rename_axis("label")
+            self.label_name = label_column
+        else:
+            self.label_name = "label" if "label" in self.lut.columns else self.lut.columns[0]
+            self.lut = lut.set_index(self.label_name)
 
     @property
     def num_rois(self) -> int:
@@ -236,8 +237,7 @@ class Segmentation:
 
         if not np.isin(rois, self.rois).all():
             raise ValueError("Some of the provided ROIs are not present in the segmentation.")
-
-        return self.lut.loc[rois]
+        return self.lut.loc[rois.astype(self.lut.index.dtype)]
 
     def resample_to_reference(self, reference_mri: MRIData) -> "Segmentation":
         """
@@ -340,10 +340,6 @@ class FreeSurferSegmentation(Segmentation):
         """
         resolved_lut_path = resolve_freesurfer_lut_path(lut_path)
         lut = read_freesurfer_lut(resolved_lut_path)
-
-        # FreeSurfer LUTs index by the "label" column
-        lut = lut.set_index("label") if "label" in lut.columns else lut
-
         mri = MRIData.from_file(filepath, dtype=dtype, orient=orient)
         return cls(mri=mri, lut=lut)
 
@@ -417,10 +413,10 @@ class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
 
         tissue_types = pd.DataFrame(
             {
-                "label": rois,
+                self.label_name: rois,
                 "tissue_type": np.where(rois < 10000, "Parenchyma", np.where(rois < 20000, "CSF", "Dura")),
             }
-        ).set_index("label")
+        ).set_index(self.label_name)
 
         return tissue_types
 
@@ -640,10 +636,11 @@ def procedural_freesurfer_lut(labels: list, descriptions: list, cmap: str = "Set
     Returns:
         pd.DataFrame: DataFrame indexed by the label, with RGBA columns
     """
-    assert len(labels) == len(descriptions), "Label and descriptions lists must have same length"
+    if not len(labels) == len(descriptions):
+        raise ValueError("Label and descriptions lists must have same length")
+
     # Get evenly spaced values between 0 and 1 based on the number of labels
     color_indices = np.linspace(0, 0.95, len(labels))
-
     # Sample a colormap
     rgb_float = plt.get_cmap(cmap)(color_indices)
 
