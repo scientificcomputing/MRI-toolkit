@@ -14,7 +14,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.request import urlretrieve
 
-import matplotlib.pyplot as plt
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
@@ -99,6 +98,8 @@ class Segmentation:
         mri (MRIData): The MRIData object containing the segmentation volume and affine.
         lut (Optional[pd.DataFrame], optional): A pandas DataFrame mapping numerical labels
             to their descriptions. If None, a default numerical mapping is generated. Defaults to None.
+            Assumes that entries are indexed by the "label" column. If there is no "label" column
+            the current index is renamed to "label"
     """
 
     mri: MRIData
@@ -111,26 +112,20 @@ class Segmentation:
         # Extract all unique active regions (ignoring 0/background)
         self.rois = np.unique(self.mri.data[self.mri.data > 0])
 
-        # Set up the lut to be indexed by the roi label
-        if lut is not None:
-            self.lut = lut
-            if lut.index.name is None:
-                self.label_name = "label" if "label" in self.lut.columns else self.lut.columns[0]
-                self.lut = self.lut.set_index(self.label_name)
-        else:
-            self.lut = pd.DataFrame(
+        if lut is None:
+            lut = pd.DataFrame(
                 {
                     "label": self.rois.astype(int),
                     "description": self.rois.astype(int).astype(str),
                 }
             ).set_index("label")
 
-        self.label_name = self.lut.index.name
-        self.lut = self._preprocess_lut(self.lut)
+        self.set_lut(lut, label_column="label" if "label" in lut.columns else None)
+        self._preprocess_lut()
 
-    def _preprocess_lut(self, lut: pd.DataFrame) -> pd.DataFrame:
+    def _preprocess_lut(self) -> pd.DataFrame:
         # dummy function for subclasses to override if they need to preprocess the LUT after loading
-        return lut
+        pass
 
     @classmethod
     def from_file(
@@ -154,12 +149,16 @@ class Segmentation:
         logger.info(f"Loading segmentation from {seg_path}.")
         mri = MRIData.from_file(seg_path, dtype=dtype, orient=orient)
 
-        if lut_path is None and seg_path.with_suffix(".csv").exists():
-            lut_path = seg_path.with_suffix(".csv")
+        if lut_path is None:
+            if seg_path.with_suffix(".csv").exists():
+                lut_path = seg_path.with_suffix(".csv")
+                lut = pd.read_csv(lut_path)
+            elif seg_path.with_suffix(".json").exists():
+                lut_path = seg_path.with_suffix(".json")
+                lut = pd.read_json(lut_path)
 
         if lut_path is not None:
             logger.info(f"Loading LUT from {lut_path}.")
-            lut = pd.read_csv(lut_path)
         else:
             lut = None
 
@@ -171,6 +170,7 @@ class Segmentation:
         dtype: npt.DTypeLike | None = None,
         intent_code: int = 1006,
         lut_path: Path | None = None,
+        lut_suffix=".csv",
     ):
         """Saves the Segmentation to a NIfTI file.
 
@@ -185,7 +185,7 @@ class Segmentation:
             write_lut(lut_path, self.lut)
         else:
             filename = output_path.name.removesuffix("".join(output_path.suffixes))
-            write_lut(output_path.parent.joinpath(filename).with_suffix(".csv"), self.lut)
+            write_lut(output_path.parent.joinpath(filename).with_suffix(lut_suffix), self.lut)
 
     def set_lut(self, lut: pd.DataFrame, label_column: str | None = None):
         """Sets the Lookup Table (LUT) for the segmentation, ensuring it matches the present ROIs.
@@ -194,16 +194,21 @@ class Segmentation:
             lut (pd.DataFrame): A pandas DataFrame mapping numerical labels
                 to their descriptions. If None, a default numerical mapping is generated. Defaults to None.
             label_column (str, optional): The name of the column in the LUT that contains the label
-                descriptions which will be used as the index. If None, use the current index. Defaults to None,
+                descriptions which will be used as the index. If None, use the current index. Defaults to None.
+                If the index is not already named, it is renamed to "label".
         """
 
         self.lut = lut
+
         if label_column is not None:
             self.lut = lut.set_index(label_column)
             self.label_name = label_column
         else:
-            self.label_name = "label" if "label" in self.lut.columns else self.lut.columns[0]
-            self.lut = lut.set_index(self.label_name)
+            if lut.index.name is not None:  # If lut index already is named, use it
+                self.label_name = lut.index.name
+            else:  # Use label as default name for axis
+                self.label_name = "label"
+                self.lut = lut.rename_axis(self.label_name)
 
     @property
     def num_rois(self) -> int:
@@ -343,9 +348,9 @@ class FreeSurferSegmentation(Segmentation):
         mri = MRIData.from_file(filepath, dtype=dtype, orient=orient)
         return cls(mri=mri, lut=lut)
 
-    def _preprocess_lut(self, lut: pd.DataFrame) -> pd.DataFrame:
+    def _preprocess_lut(self) -> pd.DataFrame:
         # FreeSurfer LUTs index by the "label" column
-        return lut.query("label < 10000")  # Most used FreeSurfer labels
+        self.lut = self.lut.query("label < 10000")  # Most used FreeSurfer labels
 
 
 class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
@@ -357,11 +362,11 @@ class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
     the base FreeSurfer anatomical label (modulus 10000).
     """
 
-    def _preprocess_lut(self, lut: pd.DataFrame) -> pd.DataFrame:
-        lut = super()._preprocess_lut(lut)
+    def _preprocess_lut(self) -> pd.DataFrame:
+        super()._preprocess_lut()
 
         # Add CSF and dura tags
-        base_lut = lut.copy()
+        base_lut = self.lut.copy()
         for i, tissue_type in enumerate(["CSF", "Dura"]):
             tissue_lut = base_lut.copy()
             tissue_lut.index += 10000 if tissue_type == "CSF" else 20000
@@ -371,8 +376,7 @@ class ExtendedFreeSurferSegmentation(FreeSurferSegmentation):
                     tissue_lut[col] = np.clip(
                         tissue_lut[col] * (0.5 + 0.5 * i), 0, 1
                     )  # Shift colors towards blue for CSF and red for Dura
-            lut = pd.concat([lut, tissue_lut])
-        return lut
+            self.lut = pd.concat([self.lut, tissue_lut])
 
     def get_roi_labels(self, rois: npt.NDArray[np.int32] | None = None) -> pd.DataFrame:
         """
@@ -621,10 +625,15 @@ def write_lut(filename: Path, table: pd.DataFrame):
         newtable["A"] = 255 - (newtable["A"] * 255).astype(int)
 
     # Save as tab-separated values without headers or indices
-    newtable.to_csv(filename, sep="\t", index=True, header=False)
+    if filename.suffix == ".csv":
+        newtable.to_csv(filename, sep="\t", index=True, header=False)
+    elif filename.suffix == ".json":
+        newtable.to_json(filename, index=True, header=False)
+    else:
+        newtable.to_txt(filename, sep="\t", index=True, header=False)
 
 
-def procedural_freesurfer_lut(labels: list, descriptions: list, cmap: str = "Set1") -> pd.DataFrame:
+def procedural_freesurfer_lut(labels: list, descriptions: list, cmap: str | None = None) -> pd.DataFrame:
     """
     Generates a FreeSurfer compatible lut with colors for each label in a procedural manner
 
@@ -636,13 +645,27 @@ def procedural_freesurfer_lut(labels: list, descriptions: list, cmap: str = "Set
     Returns:
         pd.DataFrame: DataFrame indexed by the label, with RGBA columns
     """
-    if not len(labels) == len(descriptions):
+    N = len(labels)
+    if not N == len(descriptions):
         raise ValueError("Label and descriptions lists must have same length")
 
-    # Get evenly spaced values between 0 and 1 based on the number of labels
-    color_indices = np.linspace(0, 0.95, len(labels))
-    # Sample a colormap
-    rgb_float = plt.get_cmap(cmap)(color_indices)
+    if cmap is not None:  # If a colormap is specified, use cmap from matplotlib
+        import matplotlib.pyplot as plt
+
+        # Get evenly spaced values between 0 and 1 based on the number of labels
+        color_indices = np.linspace(0, 0.95, N)
+        # Sample a colormap
+        rgb_float = plt.get_cmap(cmap)(color_indices)
+    else:
+        rgb_float = []
+        import colorsys
+
+        for i in range(N):
+            h = i / N
+            rgb = list(colorsys.hsv_to_rgb(h, 1.0, 1.0))
+            rgb.append(1.0)  # Add transparency
+            rgb_float.append(rgb)
+        rgb_float = np.array(rgb_float)
 
     # Create the DataFrame
     df_colors = pd.DataFrame(rgb_float, columns=["R", "G", "B", "A"], index=labels)
