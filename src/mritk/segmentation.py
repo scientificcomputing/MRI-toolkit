@@ -630,7 +630,7 @@ def write_lut(filename: Path, table: pd.DataFrame):
     elif filename.suffix == ".json":
         newtable.to_json(filename, index=True, header=False)
     else:
-        newtable.to_txt(filename, sep="\t", index=True, header=False)
+        newtable.to_csv(filename, sep="\t", index=True, header=False)
 
 
 def procedural_freesurfer_lut(labels: list, descriptions: list, cmap: str | None = None) -> pd.DataFrame:
