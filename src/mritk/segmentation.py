@@ -117,7 +117,7 @@ class Segmentation:
             if lut.index.name is None:
                 self.label_name = "label" if "label" in self.lut.columns else self.lut.columns[0]
                 self.lut = self.lut.set_index(self.label_name)
-        elif lut is None:
+        else:
             self.lut = pd.DataFrame(
                 {
                     "label": self.rois.astype(int),
