@@ -28,7 +28,7 @@ def test_segmentation_initialization(example_segmentation: Segmentation):
     assert example_segmentation.num_rois == 3
     assert set(example_segmentation.roi_labels) == {1, 2, 3}
     assert example_segmentation.lut.shape == (3, 1)
-    assert set(example_segmentation.lut.columns) == {"Label"}
+    assert example_segmentation.lut.index.name == "label"
 
 
 def test_freesurfer_segmentation_labels(mri_data_dir: Path):
@@ -43,7 +43,7 @@ def test_freesurfer_segmentation_labels(mri_data_dir: Path):
 
     labels = fs_seg.get_roi_labels()
     assert not labels.empty
-    assert set(labels["ROI"]) == set(fs_seg.roi_labels)
+    assert set(labels.index.values) == set(fs_seg.roi_labels)
 
 
 def test_extended_freesurfer_segmentation_labels(example_segmentation: Segmentation, mri_data_dir: Path):
@@ -53,12 +53,11 @@ def test_extended_freesurfer_segmentation_labels(example_segmentation: Segmentat
 
     ext_fs_seg = ExtendedFreeSurferSegmentation(MRIData(data=data, affine=np.eye(4)))
     labels = ext_fs_seg.get_roi_labels()
-
-    assert set(labels["ROI"]) == set(ext_fs_seg.roi_labels)
-    assert labels.loc[labels["ROI"] == 10001, "tissue_type"].iloc[0] == "CSF"
-    assert labels.loc[labels["ROI"] == 20001, "tissue_type"].iloc[0] == "Dura"
-    assert labels.loc[labels["ROI"] == 10001, "Label"].iloc[0] == labels.loc[labels["ROI"] == 1, "Label"].iloc[0]
-    assert labels.loc[labels["ROI"] == 20001, "Label"].iloc[0] == labels.loc[labels["ROI"] == 1, "Label"].iloc[0]
+    assert set(labels.index.values) == set(ext_fs_seg.roi_labels)
+    assert labels.loc[10001, "tissue_type"] == "CSF"
+    assert labels.loc[20001, "tissue_type"] == "Dura"
+    assert labels.loc[10001, "description"] == "1-CSF"
+    assert labels.loc[20001, "description"] == "1-Dura"
 
 
 def test_default_segmentation_groups():
@@ -169,10 +168,24 @@ def test_write_lut_file_io(tmp_path):
 
     # Mock DataFrame matching the parsed structure (normalized floats)
     data = [
-        {"label": 4, "description": "Left-Lateral-Ventricle", "R": 120 / 255.0, "G": 18 / 255.0, "B": 134 / 255.0, "A": 1.0},
-        {"label": 5, "description": "Left-Inf-Lat-Vent", "R": 198 / 255.0, "G": 51 / 255.0, "B": 122 / 255.0, "A": 1.0},
+        {
+            "label": 4,
+            "description": "Left-Lateral-Ventricle",
+            "R": 120 / 255.0,
+            "G": 18 / 255.0,
+            "B": 134 / 255.0,
+            "A": 1.0,
+        },
+        {
+            "label": 5,
+            "description": "Left-Inf-Lat-Vent",
+            "R": 198 / 255.0,
+            "G": 51 / 255.0,
+            "B": 122 / 255.0,
+            "A": 1.0,
+        },
     ]
-    df = pd.DataFrame(data)
+    df = pd.DataFrame(data).set_index("label")
 
     write_lut(dummy_lut_file, df)
 
@@ -211,6 +224,7 @@ def test_segmentation_refinement(tmp_path, mri_data_dir: Path, gonzo_roi, seg_ty
     smoothing = 1
     piece_fs_seg = Segmentation(mri=piece_fs_seg_data)
     result = piece_fs_seg.resample_to_reference(piece_ref_mri_data)
+
     smoothed = result.smooth(sigma=smoothing)
     result.mri.data = smoothed.mri.data
     result.save(test_output, dtype=np.int32)
@@ -256,7 +270,18 @@ def test_csf_segmentation(tmp_path, mri_data_dir: Path, gonzo_roi, seg_type):
 def test_dispatch_resample(mock_seg, mock_mri_data):
     """Test that dispatch correctly routes to segmentation resample."""
 
-    mritk.cli.main(["seg", "resample", "-i", "mock_in.nii.gz", "-r", "mock_ref.nii.gz", "-o", "mock_out.nii.gz"])
+    mritk.cli.main(
+        [
+            "seg",
+            "resample",
+            "-i",
+            "mock_in.nii.gz",
+            "-r",
+            "mock_ref.nii.gz",
+            "-o",
+            "mock_out.nii.gz",
+        ]
+    )
 
     mock_seg.from_file.assert_called_once_with(Path("mock_in.nii.gz"))
     mock_mri_data.from_file.assert_called_once_with(Path("mock_ref.nii.gz"))

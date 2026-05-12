@@ -33,7 +33,7 @@ def test_compute_stats_default(example_segmentation: Segmentation, example_value
             "timestamp": "timestamp",
         },
     )
-    print(dataframe.columns)
+    assert set(dataframe["statistic"]) == {"mean", "std", "median"}
 
 
 def test_compute_stats_default_gonzo(mri_data_dir: Path):

@@ -12,7 +12,11 @@ import pandas as pd
 import tqdm.rich
 
 from ..data import MRIData
-from ..segmentation import Segmentation, default_segmentation_groups, read_freesurfer_lut
+from ..segmentation import (
+    Segmentation,
+    default_segmentation_groups,
+    read_freesurfer_lut,
+)
 from ..testing import assert_same_space
 from .stat_functions import Mean, Median, Statistic, Std
 from .utils import find_timestamp, prepend_info, voxel_count_to_ml_scale
@@ -221,37 +225,28 @@ def generate_stats_dataframe_rois(
     # Verify that segmentation and MRI are in the same space
     assert_same_space(seg.mri, mri)
 
-    qoi_records = []  # Collects records related to qois
-    roi_records = []  # Collects records related to ROIs,
-
     # Mask infinite values
     finite_mask = np.isfinite(mri.data)
-    for roi in tqdm.rich.tqdm(seg.roi_labels, total=len(seg.roi_labels)):
-        # Identify rois in segmentation
-        region_mask = (seg.mri.data == roi) * finite_mask
-        # print(region_mask.shape)
-        region_data = mri.data[region_mask]
-        nb_nans = np.isnan(region_data).sum()
 
-        voxelcount = len(region_data)
+    stats_df = pd.DataFrame(
+        {
+            seg.label_name: seg.mri.data.ravel(),
+            "value": (mri.data * finite_mask).ravel(),
+        }
+    )
+    stats_df = stats_df[stats_df[seg.label_name] > 0]  # Remove background
 
-        roi_records.append(
-            {
-                "ROI": roi,
-                "voxel_count": voxelcount,
-                "volume_ml": seg.mri.voxel_ml_volume * voxelcount,
-                "num_nan_values": nb_nans,
-            }
-        )
-        # Iterate qoi functions
-        for qoi in qois:
-            qoi_value = qoi(region_data)
-            # Store the qoi value in a dataframe, along with the roi label and description
-            qoi_records.append({"ROI": roi, "statistic": qoi.name, "value": qoi_value})
-
-    df = pd.DataFrame.from_records(qoi_records)
-    df_roi = pd.DataFrame.from_records(roi_records)
-    df = df.merge(df_roi, on="ROI", how="left")
+    agg_funcs = [(qoi.name, qoi.func) for qoi in qois] + [
+        ("voxel_count", "count"),
+        ("num_nan_values", lambda x: np.isnan(x).sum()),
+    ]
+    stats = stats_df.groupby(seg.label_name)["value"].agg(agg_funcs).reset_index()
+    stats["volume_ml"] = stats["voxel_count"] * seg.mri.voxel_ml_volume
+    df = stats.melt(
+        id_vars=[seg.label_name, "voxel_count", "volume_ml", "num_nan_values"],
+        var_name="statistic",
+        value_name="value",
+    )
 
     # Add some metadata to each row
     if metadata is not None:
