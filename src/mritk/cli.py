@@ -84,7 +84,7 @@ def setup_parser():
     looklocker.add_arguments(looklocker_parser, extra_args_cb=add_extra_arguments)
 
     masks_parser = subparsers.add_parser(
-        "mask", help="Generate CSF and intracranial masks.", formatter_class=parser.formatter_class
+        "mask", help="Generate CSF, intracranial and parenchymal masks.", formatter_class=parser.formatter_class
     )
     masks.add_arguments(masks_parser, extra_args_cb=add_extra_arguments)
 
